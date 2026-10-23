@@ -1,17 +1,33 @@
 "use client";
 
-import { motion } from "motion/react";
+import type { LucideIcon } from "lucide-react";
 
-export function StatCard({ emoji, label, value, color }: { emoji: string; label: string; value: string; color: string }) {
+export function StatCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  color,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+}) {
   return (
-    <motion.div whileHover={{ y: -3 }} className="card flex items-center gap-3 p-4">
-      <span className="pop-btn grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-2xl" style={{ background: color }}>
-        {emoji}
-      </span>
-      <div className="min-w-0">
-        <p className="truncate font-display text-xl font-bold md:text-2xl">{value}</p>
-        <p className="truncate text-xs font-bold text-muted">{label}</p>
+    <div className="card p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-muted">{label}</p>
+        <span
+          className="grid h-7 w-7 place-items-center rounded-lg"
+          style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}
+        >
+          <Icon size={15} strokeWidth={2.3} />
+        </span>
       </div>
-    </motion.div>
+      <p className="mt-2 text-2xl font-semibold tracking-tight tnum">{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
+    </div>
   );
 }

@@ -2,40 +2,43 @@
 
 import { ClientOnly } from "@/components/ClientOnly";
 import Link from "next/link";
-import { motion } from "motion/react";
+import { BarChart3, CheckCircle2, Clock3, Hourglass, TrendingUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useToday } from "@/lib/hooks";
 import { categoryTotals, dayTotals, sessionMs, sessionsByTask, streaks, taskMs } from "@/lib/selectors";
 import { addDays, formatDuration, formatHours, parseDayKey } from "@/lib/time";
-import { HEAT, heatLevel, solid } from "@/lib/colors";
-import type { Session } from "@/lib/types";
+import { DIFFICULTY, HEAT, heatLevel, solid } from "@/lib/colors";
+import { CategoryIcon } from "@/lib/icons";
+import type { Difficulty, Session, Task } from "@/lib/types";
 import { DayBreakdown } from "@/components/DayBreakdown";
 import { StatCard } from "@/components/StatCard";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, PageHeader, SectionTitle } from "@/components/ui";
 
 const RANGES = [
-  { key: 7, label: "7 days" },
-  { key: 30, label: "30 days" },
-  { key: 90, label: "90 days" },
-  { key: 0, label: "All time" },
+  { key: 7, label: "7D" },
+  { key: 30, label: "30D" },
+  { key: 90, label: "90D" },
+  { key: 0, label: "All" },
 ] as const;
 
 function StatsPage() {
   const today = useToday();
-  const [range, setRange] = useState<number>(7);
+  const [range, setRange] = useState<number>(30);
   const tasks = useStore((s) => s.tasks);
   const sessions = useStore((s) => s.sessions);
   const categories = useStore((s) => s.categories);
   const settings = useStore((s) => s.settings);
-  // Stats are a snapshot; a running timer doesn't need second-level updates here.
+  // Insights are a snapshot; a running timer doesn't need second-level updates here.
   const [now] = useState(() => Date.now());
 
   const totals = useMemo(() => dayTotals(tasks, sessions, now), [tasks, sessions, now]);
   const firstDay = useMemo(() => tasks.map((t) => t.date).sort()[0] ?? today, [tasks, today]);
 
   const days = useMemo(() => {
-    const count = range || Math.max(1, Math.round((parseDayKey(today).getTime() - parseDayKey(firstDay).getTime()) / 86400000) + 1);
+    const count =
+      range ||
+      Math.max(1, Math.round((parseDayKey(today).getTime() - parseDayKey(firstDay).getTime()) / 86400000) + 1);
     return Array.from({ length: count }, (_, i) => addDays(today, i - count + 1));
   }, [range, today, firstDay]);
   const daySet = useMemo(() => new Set(days), [days]);
@@ -45,58 +48,82 @@ function StatsPage() {
   const rangeSessions = sessions.filter((s) => rangeTaskIds.has(s.taskId));
   const totalMs = days.reduce((s, d) => s + (totals.get(d) ?? 0), 0);
   const activeDays = days.filter((d) => (totals.get(d) ?? 0) > 0).length;
-  const longest = rangeSessions.reduce((m, s) => Math.max(m, sessionMs(s, now)), 0);
+  const avgSession = rangeSessions.length ? rangeSessions.reduce((m, s) => m + sessionMs(s, now), 0) / rangeSessions.length : 0;
   const catTotals = categoryTotals(tasks, sessions, daySet, now);
   const st = streaks(totals, settings.streakMinMinutes, today);
 
-  if (sessions.length === 0) {
-    return (
-      <div className="card">
-        <EmptyState emoji="📊" title="No stats yet" text="Track a few sessions on the Today page and your charts will bloom here." />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="flex-1 font-display text-3xl font-bold">Your stats ✨</h1>
-        <div className="flex rounded-full border-2 border-line bg-card p-1">
+  const header = (
+    <PageHeader
+      title="Insights"
+      subtitle="Where your time goes and how consistent you are."
+      actions={
+        <div className="flex rounded-lg border border-line bg-card-2 p-0.5">
           {RANGES.map((r) => (
             <button
               key={r.key}
               onClick={() => setRange(r.key)}
-              className={`relative rounded-full px-3 py-1 text-sm font-bold ${range === r.key ? "text-bg" : "text-muted"}`}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                range === r.key ? "bg-card text-ink shadow-sm" : "text-muted hover:text-ink"
+              }`}
             >
-              {range === r.key && <motion.span layoutId="range-pill" className="absolute inset-0 rounded-full bg-ink" />}
-              <span className="relative">{r.label}</span>
+              {r.label}
             </button>
           ))}
         </div>
-      </div>
+      }
+    />
+  );
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard emoji="⏱️" label="Total focus" value={`${formatHours(totalMs)}h`} color="#4d96ff" />
-        <StatCard emoji="📈" label="Avg per active day" value={formatDuration(activeDays ? totalMs / activeDays : 0)} color="#9b5de5" />
-        <StatCard emoji="✅" label="Tasks finished" value={String(rangeTasks.filter((t) => t.done).length)} color="#7bd389" />
-        <StatCard emoji="🧘" label="Longest session" value={formatDuration(longest)} color="#f15bb5" />
-      </div>
+  if (sessions.length === 0) {
+    return (
+      <>
+        {header}
+        <div className="card">
+          <EmptyState icon={BarChart3} color="#8b5cf6" title="No data yet" text="Track a few sessions on the Today page and your insights will appear here." />
+        </div>
+      </>
+    );
+  }
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-        <DailyBars days={days} tasks={rangeTasks} sessions={rangeSessions} now={now} goalMinutes={settings.dailyGoalMinutes} />
-        <section className="card p-5">
-          <h2 className="mb-3 font-display text-lg font-semibold">Where the time went</h2>
-          <DayBreakdown totals={catTotals} categories={categories} />
-        </section>
-      </div>
+  return (
+    <>
+      {header}
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard icon={Clock3} color="#3b82f6" label="Total focus" value={`${formatHours(totalMs)}h`} sub={`${activeDays} active days`} />
+          <StatCard
+            icon={TrendingUp}
+            color="#8b5cf6"
+            label="Daily average"
+            value={formatDuration(activeDays ? totalMs / activeDays : 0)}
+            sub="On active days"
+          />
+          <StatCard
+            icon={CheckCircle2}
+            color="#10b981"
+            label="Tasks completed"
+            value={String(rangeTasks.filter((t) => t.done).length)}
+            sub={`of ${rangeTasks.length} logged`}
+          />
+          <StatCard icon={Hourglass} color="#f97316" label="Avg. session" value={formatDuration(avgSession)} sub={`${rangeSessions.length} sessions`} />
+        </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <HourChart sessions={rangeSessions} now={now} />
-        <TopTasks tasks={rangeTasks} sessions={rangeSessions} now={now} />
-      </div>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <DailyBars days={days} tasks={rangeTasks} sessions={rangeSessions} now={now} goalMinutes={settings.dailyGoalMinutes} />
+          <section className="card p-4">
+            <SectionTitle>Time by category</SectionTitle>
+            <DayBreakdown totals={catTotals} categories={categories} />
+          </section>
+        </div>
 
-      <YearHeatmap totals={totals} today={today} goalMinutes={settings.dailyGoalMinutes} best={st.best} current={st.current} />
-    </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <HourChart sessions={rangeSessions} now={now} />
+          <TopTasks tasks={rangeTasks} sessions={rangeSessions} now={now} />
+        </div>
+
+        <YearHeatmap totals={totals} today={today} goalMinutes={settings.dailyGoalMinutes} best={st.best} current={st.current} />
+      </div>
+    </>
   );
 }
 
@@ -108,7 +135,7 @@ function DailyBars({
   goalMinutes,
 }: {
   days: string[];
-  tasks: { id: string; date: string; categoryId: string }[];
+  tasks: Task[];
   sessions: Session[];
   now: number;
   goalMinutes: number;
@@ -132,40 +159,42 @@ function DailyBars({
   });
   const goalMs = goalMinutes * 60000 * bucket;
   const max = Math.max(goalMs, ...data.map((d) => d.total), 1);
+  const fmt = (d: string) => parseDayKey(d).toLocaleDateString([], { month: "short", day: "numeric" });
 
   return (
-    <section className="card p-5">
-      <h2 className="mb-4 font-display text-lg font-semibold">{bucket > 1 ? "Weekly" : "Daily"} focus</h2>
-      <div className="relative flex h-56 items-end gap-[3px]">
+    <section className="card p-4">
+      <SectionTitle right={`Dashed line = ${bucket > 1 ? "weekly" : "daily"} goal`}>
+        {bucket > 1 ? "Weekly" : "Daily"} focus
+      </SectionTitle>
+      <div className="relative mt-2 flex h-52 items-end gap-[3px]">
+        {[0.25, 0.5, 0.75].map((f) => (
+          <div key={f} className="pointer-events-none absolute inset-x-0 border-t border-line" style={{ bottom: `${f * 100}%` }} />
+        ))}
         <div
-          className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-accent"
+          className="pointer-events-none absolute inset-x-0 border-t border-dashed border-accent/70"
           style={{ bottom: `${(goalMs / max) * 100}%` }}
-        >
-          <span className="absolute -top-5 right-0 text-xs font-bold text-accent">goal</span>
-        </div>
-        {data.map((d, i) => (
-          <div key={d.label} className="group relative flex h-full flex-1 flex-col justify-end" title={`${d.label}: ${formatDuration(d.total)}`}>
-            <motion.div
-              initial={{ height: 0 }}
-              animate={{ height: `${(d.total / max) * 100}%` }}
-              transition={{ delay: i * 0.01, type: "spring", stiffness: 120, damping: 18 }}
-              className="flex flex-col-reverse overflow-hidden rounded-t-lg"
+        />
+        {data.map((d) => (
+          <div key={d.label} className="group relative flex h-full flex-1 flex-col justify-end">
+            <div
+              className="flex flex-col-reverse overflow-hidden rounded-t-[4px] transition-[height] duration-500"
+              style={{ height: `${(d.total / max) * 100}%` }}
             >
               {categories
                 .filter((c) => d.perCat.get(c.id))
                 .map((c) => (
                   <div key={c.id} style={{ height: `${((d.perCat.get(c.id) ?? 0) / d.total) * 100}%`, background: solid(c.color) }} />
                 ))}
-            </motion.div>
-            <span className="pointer-events-none absolute -top-6 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-ink px-2 py-0.5 text-xs font-bold text-bg group-hover:block">
-              {formatDuration(d.total)}
+            </div>
+            <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-medium text-bg shadow group-hover:block">
+              {fmt(d.label)} · {formatDuration(d.total)}
             </span>
           </div>
         ))}
       </div>
-      <div className="mt-2 flex justify-between text-xs font-bold text-muted">
-        <span>{parseDayKey(data[0].label).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
-        <span>{parseDayKey(days.at(-1)!).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
+      <div className="mt-2 flex justify-between text-[11px] text-muted">
+        <span>{fmt(data[0].label)}</span>
+        <span>{fmt(days.at(-1)!)}</span>
       </div>
     </section>
   );
@@ -188,27 +217,26 @@ function HourChart({ sessions, now }: { sessions: Session[]; now: number }) {
   const max = Math.max(...hours, 1);
   const peak = hours.indexOf(Math.max(...hours));
   const label = (h: number) => `${h % 12 || 12}${h < 12 ? "am" : "pm"}`;
+  const period = peak < 12 ? "mornings" : peak < 18 ? "afternoons" : "evenings";
 
   return (
-    <section className="card p-5">
-      <h2 className="font-display text-lg font-semibold">When you focus</h2>
-      <p className="mb-4 text-sm font-semibold text-muted">
-        Peak hour: <b className="text-ink">{label(peak)}</b>{" "}
-        {peak < 12 ? "🌅 morning person!" : peak < 18 ? "☀️ afternoon grinder" : "🦉 night owl"}
-      </p>
-      <div className="flex h-32 items-end gap-[3px]">
+    <section className="card p-4">
+      <SectionTitle right={`Peak ${label(peak)}`}>Focus by hour</SectionTitle>
+      <p className="-mt-1 mb-4 text-xs text-muted">You do your most focused work in the {period}.</p>
+      <div className="flex h-28 items-end gap-[3px]">
         {hours.map((ms, h) => (
-          <motion.div
+          <div
             key={h}
             title={`${label(h)}: ${formatDuration(ms)}`}
-            initial={{ height: 0 }}
-            animate={{ height: `${Math.max(3, (ms / max) * 100)}%` }}
-            className="flex-1 rounded-t-md"
-            style={{ background: h === peak ? "var(--accent)" : "color-mix(in oklab, var(--accent) 35%, var(--card-2))" }}
+            className="flex-1 rounded-t-[3px] transition-[height] duration-500"
+            style={{
+              height: `${Math.max(3, (ms / max) * 100)}%`,
+              background: h === peak ? "#8b5cf6" : "color-mix(in srgb, #8b5cf6 28%, var(--card))",
+            }}
           />
         ))}
       </div>
-      <div className="mt-1 flex justify-between text-xs font-bold text-muted">
+      <div className="mt-1.5 flex justify-between text-[11px] text-muted">
         <span>12am</span>
         <span>6am</span>
         <span>12pm</span>
@@ -219,7 +247,7 @@ function HourChart({ sessions, now }: { sessions: Session[]; now: number }) {
   );
 }
 
-function TopTasks({ tasks, sessions, now }: { tasks: { id: string; title: string; categoryId: string; difficulty: string | null; done: boolean }[]; sessions: Session[]; now: number }) {
+function TopTasks({ tasks, sessions, now }: { tasks: Task[]; sessions: Session[]; now: number }) {
   const categories = useStore((s) => s.categories);
   const byTask = sessionsByTask(sessions);
   const top = tasks
@@ -227,35 +255,40 @@ function TopTasks({ tasks, sessions, now }: { tasks: { id: string; title: string
     .filter((x) => x.ms > 0)
     .sort((a, b) => b.ms - a.ms)
     .slice(0, 6);
-  const diffs = (["easy", "medium", "hard"] as const).map((d) => ({
+  const maxMs = top[0]?.ms ?? 1;
+  const diffs = (Object.keys(DIFFICULTY) as Difficulty[]).map((d) => ({
     d,
     n: tasks.filter((t) => t.difficulty === d && t.done).length,
   }));
 
   return (
-    <section className="card p-5">
-      <h2 className="mb-3 font-display text-lg font-semibold">Biggest time sinks</h2>
-      <ul className="flex flex-col gap-2">
-        {top.map(({ t, ms }, i) => {
+    <section className="card p-4">
+      <SectionTitle>Most time spent</SectionTitle>
+      <ul className="flex flex-col gap-2.5">
+        {top.map(({ t, ms }) => {
           const c = categories.find((x) => x.id === t.categoryId);
           return (
-            <li key={t.id} className="flex items-center gap-2 font-semibold">
-              <span className="w-5 text-center font-display text-muted">{i + 1}</span>
-              <span className="grid h-7 w-7 place-items-center rounded-lg text-sm" style={{ background: c ? solid(c.color) : undefined }}>
-                {c?.emoji}
-              </span>
-              <span className="flex-1 truncate">{t.title}</span>
-              <span className="font-display tabular-nums">{formatDuration(ms)}</span>
+            <li key={t.id} className="flex items-center gap-2.5 text-sm">
+              {c && <CategoryIcon icon={c.icon} color={c.color} size="xs" />}
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{t.title}</p>
+                <div className="mt-1 h-1 overflow-hidden rounded-full bg-card-2">
+                  <div className="h-full rounded-full" style={{ width: `${(ms / maxMs) * 100}%`, background: c ? solid(c.color) : "var(--accent)" }} />
+                </div>
+              </div>
+              <span className="w-14 text-right font-mono text-xs text-ink-2 tnum">{formatDuration(ms)}</span>
             </li>
           );
         })}
       </ul>
       {diffs.some((d) => d.n) && (
-        <div className="mt-4 flex gap-2 border-t-2 border-soft-line pt-4">
+        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-4">
           {diffs.map(({ d, n }) => (
-            <div key={d} className="flex-1 rounded-2xl border-2 border-line p-2 text-center text-[#2b2240]" style={{ background: { easy: "#7bd389", medium: "#f7c531", hard: "#ff6b6b" }[d] }}>
-              <p className="font-display text-2xl font-bold">{n}</p>
-              <p className="text-xs font-bold capitalize">{d} solved</p>
+            <div key={d} className="rounded-lg border border-line px-3 py-2">
+              <p className="text-lg font-semibold tnum" style={{ color: DIFFICULTY[d].color }}>
+                {n}
+              </p>
+              <p className="text-[11px] text-muted">{DIFFICULTY[d].label} solved</p>
             </div>
           ))}
         </div>
@@ -275,26 +308,21 @@ function YearHeatmap({ totals, today, goalMinutes, best, current }: { totals: Ma
   const yearMs = weeks.flat().reduce((s, d) => s + (d <= today ? totals.get(d) ?? 0 : 0), 0);
 
   return (
-    <section className="card p-5">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold">Last 12 months</h2>
-        <p className="text-sm font-bold text-muted">
-          {formatHours(yearMs)}h total · 🔥 {current} current · 🏆 {best} best
-        </p>
-      </div>
+    <section className="card p-4">
+      <SectionTitle right={`${formatHours(yearMs)}h total · current streak ${current} · best ${best}`}>Last 12 months</SectionTitle>
       <div className="no-scrollbar overflow-x-auto">
         <div className="flex w-max gap-[3px]">
           {weeks.map((week, i) => (
             <div key={i} className="flex flex-col gap-[3px]">
               {week.map((d) =>
                 d > today ? (
-                  <span key={d} className="h-3.5 w-3.5" />
+                  <span key={d} className="h-3 w-3" />
                 ) : (
                   <Link
                     key={d}
                     href={`/day/${d}`}
                     title={`${d}: ${formatDuration(totals.get(d) ?? 0)}`}
-                    className={`h-3.5 w-3.5 rounded-[4px] transition-transform hover:scale-150 ${d === today ? "ring-2 ring-line" : ""}`}
+                    className={`h-3 w-3 rounded-[3px] hover:ring-1 hover:ring-ink/40 ${d === today ? "ring-1 ring-accent" : ""}`}
                     style={{ background: HEAT[heatLevel(totals.get(d) ?? 0, goalMinutes)] }}
                   />
                 ),

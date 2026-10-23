@@ -1,22 +1,21 @@
 import type { Metadata, Viewport } from "next";
-import { Fredoka, Nunito } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 
-const fredoka = Fredoka({
-  variable: "--font-fredoka",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
 });
 
-const nunito = Nunito({
-  variable: "--font-nunito",
+const mono = JetBrains_Mono({
+  variable: "--font-jetbrains",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
   title: "GrindLog",
-  description: "Track what you work on, how long, and keep the streak alive.",
+  description: "Track focused work, time per task, and daily progress.",
 };
 
 // All data lives in localStorage and pages render client-side only,
@@ -24,7 +23,7 @@ export const metadata: Metadata = {
 export const instant = false;
 
 export const viewport: Viewport = {
-  themeColor: "#fff8ef",
+  themeColor: "#ffffff",
 };
 
 // Apply the saved theme before first paint to avoid a light/dark flash.
@@ -34,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${fredoka.variable} ${nunito.variable} h-full antialiased`}
+      className={`${inter.variable} ${mono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

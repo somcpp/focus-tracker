@@ -1,19 +1,20 @@
 export type ColorKey =
-  | "tomato"
-  | "tangerine"
-  | "sunshine"
-  | "lime"
-  | "mint"
-  | "sky"
-  | "grape"
-  | "bubblegum";
+  | "blue"
+  | "orange"
+  | "green"
+  | "yellow"
+  | "purple"
+  | "pink"
+  | "red"
+  | "teal";
 
 export type Difficulty = "easy" | "medium" | "hard";
 
 export interface Category {
   id: string;
   name: string;
-  emoji: string;
+  /** key into ICONS */
+  icon: string;
   color: ColorKey;
   archived: boolean;
   createdAt: number;

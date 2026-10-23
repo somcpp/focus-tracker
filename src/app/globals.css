@@ -3,50 +3,57 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg: #fff8ef;
-  --bg-dot: #f1dfc8;
+  --bg: #ffffff;
+  --subtle: #f8fafc;
   --card: #ffffff;
-  --card-2: #fff3e3;
-  --ink: #2b2240;
-  --muted: #8a7f9c;
-  --line: #2b2240;
-  --soft-line: #eadfce;
-  --accent: #ff7a59;
-  --heat-0: #f2e9dc;
-  --heat-1: #c9f2d0;
-  --heat-2: #8ee29d;
-  --heat-3: #45c46a;
-  --heat-4: #1f9a4a;
+  --card-2: #f4f5f7;
+  --ink: #0f172a;
+  --ink-2: #334155;
+  --muted: #64748b;
+  --line: #e5e7eb;
+  --line-strong: #d1d5db;
+  --accent: #2563eb;
+  --accent-soft: #eff6ff;
+  --heat-0: #eef0f3;
+  --heat-1: #c6f0d2;
+  --heat-2: #7ddc9a;
+  --heat-3: #34b864;
+  --heat-4: #1a8a46;
 }
 
 .dark {
-  --bg: #1a1626;
-  --bg-dot: #2a2440;
-  --card: #251f36;
-  --card-2: #2f2845;
-  --ink: #f4efff;
-  --muted: #a69cbf;
-  --line: #0d0a16;
-  --soft-line: #3a3254;
-  --accent: #ff8a6b;
-  --heat-0: #2f2845;
-  --heat-1: #1f4d33;
-  --heat-2: #24723f;
-  --heat-3: #33a357;
-  --heat-4: #5ee07f;
+  --bg: #0b0d12;
+  --subtle: #10131a;
+  --card: #12151c;
+  --card-2: #1a1e27;
+  --ink: #f1f5f9;
+  --ink-2: #cbd5e1;
+  --muted: #8b95a7;
+  --line: #232833;
+  --line-strong: #2e3542;
+  --accent: #3b82f6;
+  --accent-soft: #172036;
+  --heat-0: #1a1e27;
+  --heat-1: #12452a;
+  --heat-2: #186a3b;
+  --heat-3: #23964f;
+  --heat-4: #3fcf72;
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-subtle: var(--subtle);
   --color-card: var(--card);
   --color-card-2: var(--card-2);
   --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
   --color-muted: var(--muted);
   --color-line: var(--line);
-  --color-soft-line: var(--soft-line);
+  --color-line-strong: var(--line-strong);
   --color-accent: var(--accent);
-  --font-sans: var(--font-nunito);
-  --font-display: var(--font-fredoka);
+  --color-accent-soft: var(--accent-soft);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
 }
 
 html {
@@ -57,46 +64,24 @@ html.dark {
 }
 
 body {
-  background-color: var(--bg);
-  /* dotted paper texture + soft color blobs */
-  background-image:
-    radial-gradient(var(--bg-dot) 1.2px, transparent 1.2px),
-    radial-gradient(circle at 8% 10%, color-mix(in oklab, #ffb37a 22%, transparent), transparent 35%),
-    radial-gradient(circle at 92% 20%, color-mix(in oklab, #b28dff 20%, transparent), transparent 35%),
-    radial-gradient(circle at 70% 95%, color-mix(in oklab, #6ee7b7 18%, transparent), transparent 40%);
-  background-size: 22px 22px, 100% 100%, 100% 100%, 100% 100%;
-  background-attachment: fixed;
+  background: var(--bg);
   color: var(--ink);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Chunky "clay" card: thick border + offset shadow */
 @utility card {
   background: var(--card);
-  border: 2.5px solid var(--line);
-  border-radius: 1.75rem;
-  box-shadow: 0 5px 0 var(--line);
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 1px 3px rgba(15, 23, 42, 0.03);
 }
 
-@utility pop-btn {
-  border: 2.5px solid var(--line);
-  box-shadow: 0 4px 0 var(--line);
-  transition:
-    transform 0.08s ease,
-    box-shadow 0.08s ease,
-    filter 0.15s ease;
-  &:hover {
-    filter: brightness(1.05);
-    transform: translateY(-1px);
-    box-shadow: 0 5px 0 var(--line);
-  }
-  &:active {
-    transform: translateY(3px);
-    box-shadow: 0 1px 0 var(--line);
-  }
-}
-
-@utility font-display {
-  font-family: var(--font-fredoka), var(--font-nunito), sans-serif;
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 @utility no-scrollbar {
@@ -106,45 +91,56 @@ body {
   }
 }
 
-/* striped "running" texture */
-@utility stripes {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    rgba(255, 255, 255, 0.22) 0 10px,
-    transparent 10px 20px
+/* soft diagonal shimmer for the running task */
+@utility running-sheen {
+  background-image: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 70%
   );
-  background-size: 28px 28px;
-  animation: stripes-move 1s linear infinite;
+  background-size: 250% 100%;
+  animation: sheen 2.4s linear infinite;
 }
 
-@keyframes stripes-move {
+.dark .running-sheen {
+  background-image: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 70%
+  );
+}
+
+@keyframes sheen {
+  from {
+    background-position: 150% 0;
+  }
   to {
-    background-position: 28px 0;
+    background-position: -100% 0;
   }
-}
-
-@keyframes wiggle {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(-8deg);
-  }
-  75% {
-    transform: rotate(8deg);
-  }
-}
-
-.animate-wiggle {
-  animation: wiggle 0.6s ease-in-out infinite;
 }
 
 textarea,
-input {
+input,
+select {
   outline: none;
 }
 
+.field {
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 0.625rem;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.field:focus,
+.field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 ::selection {
-  background: color-mix(in oklab, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
 }

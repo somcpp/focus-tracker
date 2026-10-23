@@ -9,7 +9,7 @@ export function ClientOnly({ children }: { children: ReactNode }) {
   if (!mounted) {
     return (
       <div className="grid min-h-[60vh] place-items-center">
-        <div className="animate-bounce text-6xl">⏱️</div>
+        <span className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-accent" />
       </div>
     );
   }

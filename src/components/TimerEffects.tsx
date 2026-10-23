@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Coffee } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useActiveSession, useNow, useToday } from "@/lib/hooks";
 import { useUi } from "@/lib/ui-store";
 import { dayTotals } from "@/lib/selectors";
 import { formatClock, formatDuration, formatTimeOfDay } from "@/lib/time";
-import { bigCelebration, chime } from "@/lib/celebrate";
+import { chime } from "@/lib/celebrate";
 import { Button, Modal, toast } from "./ui";
 
 const GOAL_KEY = "grindlog-goal-celebrated";
@@ -48,7 +49,7 @@ export function TimerEffects() {
       pauseActive(active.start + settings.pomodoro.focusMinutes * 60000);
       setBreak(Date.now() + settings.pomodoro.breakMinutes * 60000, active.taskId);
       chime();
-      toast({ emoji: "☕", text: `Focus block done! Take ${settings.pomodoro.breakMinutes} min.` }, 6000);
+      toast({ tone: "info", text: `Focus block complete. Take a ${settings.pomodoro.breakMinutes}-minute break.` }, 6000);
     }
   }, [active, elapsed, settings.pomodoro, pauseActive, setBreak]);
 
@@ -60,8 +61,8 @@ export function TimerEffects() {
     chime();
     toast(
       {
-        emoji: "🔔",
-        text: "Break's over, back to it!",
+        tone: "info",
+        text: "Break is over.",
         action: taskId ? { label: "Resume", onClick: () => startTask(taskId) } : undefined,
       },
       15000,
@@ -79,8 +80,8 @@ export function TimerEffects() {
   useEffect(() => {
     if (!goalHit || localStorage.getItem(GOAL_KEY) === today) return;
     localStorage.setItem(GOAL_KEY, today);
-    bigCelebration();
-    toast({ emoji: "🏆", text: `Daily goal smashed: ${formatDuration(todayMs)}!` }, 6000);
+    chime();
+    toast({ tone: "success", text: `Daily goal reached · ${formatDuration(todayMs)} tracked` }, 6000);
   }, [goalHit, today, todayMs]);
 
   // --- keyboard: Space toggles the most recent task
@@ -124,20 +125,20 @@ function IdleCheck({ elapsed }: { elapsed: number }) {
 
   const limitAt = active.start + threshold;
   return (
-    <Modal open={open} onClose={() => setSnoozed({ id: active.id, until: elapsed + limitMin * 60000 })} title="Still grinding? 👀">
-      <p className="mb-5 text-muted">
-        This timer has been running for <b className="text-ink">{formatDuration(elapsed)}</b>. If you
-        walked away, you can trim it back.
+    <Modal open={open} onClose={() => setSnoozed({ id: active.id, until: elapsed + limitMin * 60000 })} title="Are you still working?">
+      <p className="mb-5 text-sm text-muted">
+        This timer has been running for <span className="font-semibold text-ink">{formatDuration(elapsed)}</span>.
+        If you stepped away, you can stop it at the point you left.
       </p>
       <div className="flex flex-col gap-2">
-        <Button variant="mint" onClick={() => setSnoozed({ id: active.id, until: elapsed + limitMin * 60000 })}>
-          Yep, still going 💪
+        <Button onClick={() => setSnoozed({ id: active.id, until: elapsed + limitMin * 60000 })}>
+          Yes, keep tracking
         </Button>
-        <Button variant="sun" onClick={() => pauseActive(limitAt)}>
-          Stop it at {formatTimeOfDay(limitAt)}
+        <Button variant="secondary" onClick={() => pauseActive(limitAt)}>
+          Stop at {formatTimeOfDay(limitAt)}
         </Button>
-        <Button variant="plain" onClick={() => pauseActive()}>
-          Pause now
+        <Button variant="ghost" onClick={() => pauseActive()}>
+          Stop now
         </Button>
       </div>
     </Modal>
@@ -146,12 +147,15 @@ function IdleCheck({ elapsed }: { elapsed: number }) {
 
 function BreakBanner({ until, now, onSkip }: { until: number; now: number; onSkip: () => void }) {
   return (
-    <div className="card fixed left-1/2 top-20 z-40 flex -translate-x-1/2 items-center gap-3 bg-[#f7c531] px-4 py-2 text-[#2b2240]">
-      <span className="text-2xl">☕</span>
-      <span className="font-display font-semibold">Break · {formatClock(until - now)}</span>
-      <button onClick={onSkip} className="rounded-full bg-white/60 px-3 py-1 text-sm font-bold">
+    <div className="fixed left-1/2 top-4 z-40 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-line bg-card py-2 pl-3 pr-2 text-sm shadow-lg">
+      <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-500/12 text-amber-500">
+        <Coffee size={15} />
+      </span>
+      <span className="font-medium">Break</span>
+      <span className="font-mono tnum text-muted">{formatClock(until - now)}</span>
+      <Button size="sm" variant="secondary" onClick={onSkip}>
         Skip
-      </button>
+      </Button>
     </div>
   );
 }

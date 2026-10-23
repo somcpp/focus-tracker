@@ -12,6 +12,27 @@ import type {
   Task,
 } from "./types";
 import { parseDayKey } from "./time";
+import { EMOJI_TO_ICON } from "./icons";
+
+const OLD_COLORS: Record<string, ColorKey> = {
+  sky: "blue",
+  tangerine: "orange",
+  lime: "green",
+  sunshine: "yellow",
+  grape: "purple",
+  bubblegum: "pink",
+  tomato: "red",
+  mint: "teal",
+};
+
+/** v1 categories used emoji + playful color names */
+function migrateCategories(cats: (Category & { emoji?: string })[]): Category[] {
+  return cats.map(({ emoji, ...c }) => ({
+    ...c,
+    icon: c.icon ?? (emoji && EMOJI_TO_ICON[emoji]) ?? "layers",
+    color: OLD_COLORS[c.color] ?? c.color,
+  }));
+}
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -28,8 +49,8 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 const seedCategories = (): Category[] => [
-  { id: uid(), name: "DSA", emoji: "🧠", color: "grape", archived: false, createdAt: Date.now() },
-  { id: uid(), name: "Dev", emoji: "💻", color: "sky", archived: false, createdAt: Date.now() },
+  { id: uid(), name: "DSA", icon: "brain", color: "purple", archived: false, createdAt: Date.now() },
+  { id: uid(), name: "Dev", icon: "code", color: "blue", archived: false, createdAt: Date.now() },
 ];
 
 const initialData = (): PersistedState => ({
@@ -43,7 +64,7 @@ const initialData = (): PersistedState => ({
 
 interface Actions {
   // categories
-  addCategory: (name: string, emoji: string, color: ColorKey) => string;
+  addCategory: (name: string, icon: string, color: ColorKey) => string;
   updateCategory: (id: string, patch: Partial<Omit<Category, "id">>) => void;
   deleteCategory: (id: string) => void;
   addCategoryToDay: (date: string, categoryId: string) => void;
@@ -80,12 +101,12 @@ export const useStore = create<Store>()(
     (set, get) => ({
       ...initialData(),
 
-      addCategory: (name, emoji, color) => {
+      addCategory: (name, icon, color) => {
         const id = uid();
         set((st) => ({
           categories: [
             ...st.categories,
-            { id, name: name.trim(), emoji, color, archived: false, createdAt: Date.now() },
+            { id, name: name.trim(), icon, color, archived: false, createdAt: Date.now() },
           ],
         }));
         return id;
@@ -241,7 +262,7 @@ export const useStore = create<Store>()(
       updateSettings: (patch) => set((st) => ({ settings: { ...st.settings, ...patch } })),
       importData: (data) =>
         set({
-          categories: data.categories ?? [],
+          categories: migrateCategories(data.categories ?? []),
           tasks: data.tasks ?? [],
           sessions: data.sessions ?? [],
           journals: data.journals ?? {},
@@ -252,7 +273,11 @@ export const useStore = create<Store>()(
     }),
     {
       name: "grindlog-v1",
-      version: 1,
+      version: 2,
+      migrate: (persisted) => {
+        const p = persisted as PersistedState;
+        return { ...p, categories: migrateCategories(p.categories ?? []) };
+      },
       storage: createJSONStorage(() => localStorage),
       partialize: (st): PersistedState => ({
         categories: st.categories,

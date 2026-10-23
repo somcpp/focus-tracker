@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 
 export function ProgressRing({
   value,
-  size = 140,
-  stroke = 14,
+  size = 132,
+  stroke = 10,
   color = "var(--accent)",
   children,
 }: {
@@ -20,18 +20,20 @@ export function ProgressRing({
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--card-2)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - v)}
-          style={{ transition: "stroke-dashoffset 0.6s ease" }}
-        />
+        {v > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={c * (1 - v)}
+            style={{ transition: "stroke-dashoffset 0.6s ease" }}
+          />
+        )}
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">{children}</div>
     </div>

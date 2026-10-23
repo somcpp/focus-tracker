@@ -1,29 +1,23 @@
 import type { ColorKey } from "./types";
 
 export const COLORS: Record<ColorKey, { solid: string; label: string }> = {
-  tomato: { solid: "#ff6b6b", label: "Tomato" },
-  tangerine: { solid: "#ff9f43", label: "Tangerine" },
-  sunshine: { solid: "#f7c531", label: "Sunshine" },
-  lime: { solid: "#7bd389", label: "Lime" },
-  mint: { solid: "#2ec4b6", label: "Mint" },
-  sky: { solid: "#4d96ff", label: "Sky" },
-  grape: { solid: "#9b5de5", label: "Grape" },
-  bubblegum: { solid: "#f15bb5", label: "Bubblegum" },
+  blue: { solid: "#3b82f6", label: "Blue" },
+  orange: { solid: "#f97316", label: "Orange" },
+  green: { solid: "#10b981", label: "Green" },
+  yellow: { solid: "#eab308", label: "Yellow" },
+  purple: { solid: "#8b5cf6", label: "Purple" },
+  pink: { solid: "#ec4899", label: "Pink" },
+  red: { solid: "#ef4444", label: "Red" },
+  teal: { solid: "#14b8a6", label: "Teal" },
 };
 
 export const COLOR_KEYS = Object.keys(COLORS) as ColorKey[];
 
-export const EMOJIS = [
-  "🧠", "💻", "📚", "🎯", "🚀", "✍️", "🎨", "🧪",
-  "📐", "🏋️", "🎧", "🌱", "🔥", "⚡", "🧩", "📝",
-  "🎓", "💡", "🛠️", "📊", "🗣️", "🎸", "🧘", "☕",
-];
+export const solid = (c: ColorKey) => (COLORS[c] ?? COLORS.blue).solid;
 
-export const solid = (c: ColorKey) => COLORS[c].solid;
-
-/** A soft tint of the color that works on both light and dark cards */
-export const tint = (c: ColorKey, pct = 18) =>
-  `color-mix(in oklab, ${COLORS[c].solid} ${pct}%, var(--card))`;
+/** A soft tint of the color that works on both light and dark surfaces */
+export const tint = (c: ColorKey, pct = 12) =>
+  `color-mix(in srgb, ${solid(c)} ${pct}%, var(--card))`;
 
 /** Heatmap levels 0-4 */
 export const HEAT = [
@@ -42,3 +36,9 @@ export function heatLevel(ms: number, goalMinutes: number): number {
   if (ratio < 1) return 3;
   return 4;
 }
+
+export const DIFFICULTY = {
+  easy: { label: "Easy", color: "#10b981" },
+  medium: { label: "Medium", color: "#f59e0b" },
+  hard: { label: "Hard", color: "#ef4444" },
+} as const;
