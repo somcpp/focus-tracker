@@ -1,6 +1,8 @@
-# GrindLog ⏱️
+# Focus Tracker
 
 A colorful focus tracker: log what you're working on, hit play, and watch your hours, streaks and calendar fill up.
+
+**Live:** https://focus-tracker-lemon.vercel.app
 
 ## Features
 

@@ -194,7 +194,7 @@ function DataSection() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `grindlog-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `focus-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -207,7 +207,7 @@ function DataSection() {
       useStore.getState().importData(data);
       toast({ tone: "success", text: "Backup restored" });
     } catch {
-      toast({ tone: "error", text: "That file isn't a valid GrindLog backup" });
+      toast({ tone: "error", text: "That file isn't a valid Focus Tracker backup" });
     }
   };
 

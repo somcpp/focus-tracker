@@ -71,7 +71,7 @@ function Logo() {
       <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#4f8bff] to-[#2456f5] text-white shadow-[0_6px_14px_-6px_#2f6bff]">
         <Timer size={19} strokeWidth={2.5} />
       </span>
-      <span className="text-lg font-bold tracking-tight">GrindLog</span>
+      <span className="text-lg font-bold tracking-tight">Focus Tracker</span>
     </Link>
   );
 }

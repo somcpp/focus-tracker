@@ -14,7 +14,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GrindLog",
+  title: "Focus Tracker",
   description: "Track focused work, time per task, and daily progress.",
 };
 

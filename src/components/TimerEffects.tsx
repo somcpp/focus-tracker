@@ -38,7 +38,7 @@ export function TimerEffects() {
     } else if (breakUntil) {
       document.title = `☕ Break ${formatClock(breakUntil - now)}`;
     } else {
-      document.title = "GrindLog";
+      document.title = "Focus Tracker";
     }
   }, [active, task, sessions, now, breakUntil]);
 
