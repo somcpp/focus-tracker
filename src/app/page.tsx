@@ -36,20 +36,22 @@ function TodayPage() {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="flex min-w-0 flex-col gap-5">
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0 flex-1">
             <h1 className="text-[28px] font-bold leading-tight tracking-tight md:text-[32px]">
-              {greeting()}
-              {name ? `, ${name}` : ""}!
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-300 dark:to-purple-300">
+                {greeting()}
+                {name ? `, ${name}` : ""}!
+              </span>
             </h1>
             <p className="mt-1 text-[15px] text-muted">Let&apos;s make today productive.</p>
           </div>
-          <div className="sm:text-right">
+          <div className="shrink-0 sm:text-right sm:max-w-xs md:max-w-sm">
             <p className="text-[15px] font-medium text-ink-2">
               {prettyDate(today, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
             </p>
             <p className="mt-1 flex items-center gap-1.5 text-[13px] italic text-muted sm:justify-end">
-              <Sun size={15} className="text-amber-400" /> “{quote}”
+              <Sun size={15} className="shrink-0 text-amber-400" /> “{quote}”
             </p>
           </div>
         </header>

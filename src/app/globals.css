@@ -3,8 +3,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg: #f4f7fc;
-  --subtle: #f7f9fd;
+  --bg: #ffffff;
+  --subtle: #f8fafc;
   --card: #ffffff;
   --card-2: #f1f4f9;
   --ink: #111827;
