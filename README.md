@@ -11,6 +11,7 @@ Write down what you're working on, press play, and let it keep the score.
 
 [**Live demo →**](https://focus-tracker-lemon.vercel.app)
 
+[![CI](https://github.com/somcpp/focus-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/somcpp/focus-tracker/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-2f6bff.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
