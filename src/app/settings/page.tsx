@@ -1,8 +1,9 @@
 "use client";
 
 import { ClientOnly } from "@/components/ClientOnly";
-import { Archive, ArchiveRestore, Download, Moon, Pencil, Plus, Sun, Trash2, Upload } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Download, Moon, Pencil, Plus, ShieldCheck, Sun, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { isStoragePersisted, requestPersistentStorage } from "@/lib/persist";
 import { useStore } from "@/lib/store";
 import { formatDuration } from "@/lib/time";
 import { CategoryIcon } from "@/lib/icons";
@@ -121,7 +122,7 @@ function Categories() {
   const categories = useStore((s) => s.categories);
   const tasks = useStore((s) => s.tasks);
   const sessions = useStore((s) => s.sessions);
-  const { addCategory, updateCategory, deleteCategory } = useStore.getState();
+  const { addCategory, updateCategory, deleteCategory, moveCategory } = useStore.getState();
   const [editing, setEditing] = useState<Category | null>(null);
   const [creating, setCreating] = useState(false);
   const [now] = useState(() => Date.now());
@@ -134,7 +135,7 @@ function Categories() {
   return (
     <Section
       title="Categories"
-      description="Archived categories keep their history but are hidden from pickers."
+      description="Order here is the order everywhere. Archived categories keep their history but are hidden from pickers."
       action={
         <Button size="sm" variant="secondary" onClick={() => setCreating(true)}>
           <Plus size={14} /> New
@@ -142,7 +143,7 @@ function Categories() {
       }
     >
       <ul className="-mx-1 flex flex-col">
-        {categories.map((c) => (
+        {categories.map((c, i) => (
           <li key={c.id} className={`flex items-center gap-3 rounded-lg px-1 py-2 hover:bg-subtle ${c.archived ? "opacity-55" : ""}`}>
             <CategoryIcon icon={c.icon} color={c.color} size="sm" />
             <div className="min-w-0 flex-1">
@@ -152,6 +153,17 @@ function Categories() {
               </p>
               <p className="text-xs text-muted tnum">{formatDuration(totalFor(c.id))} tracked</p>
             </div>
+            <IconButton label="Move up" disabled={i === 0} className="disabled:opacity-30" onClick={() => moveCategory(c.id, -1)}>
+              <ArrowUp size={15} />
+            </IconButton>
+            <IconButton
+              label="Move down"
+              disabled={i === categories.length - 1}
+              className="disabled:opacity-30"
+              onClick={() => moveCategory(c.id, 1)}
+            >
+              <ArrowDown size={15} />
+            </IconButton>
             <IconButton label="Edit" onClick={() => setEditing(c)}>
               <Pencil size={15} />
             </IconButton>
@@ -187,6 +199,18 @@ function DataSection() {
   const taskCount = useStore((s) => s.tasks.length);
   const sessionCount = useStore((s) => s.sessions.length);
   const bytes = (localStorage.getItem("grindlog-v1") ?? "").length;
+  const lastBackupAt = useStore((s) => s.settings.lastBackupAt);
+  const [persisted, setPersisted] = useState<boolean | null>(null);
+  const [now] = useState(() => Date.now());
+
+  useEffect(() => {
+    isStoragePersisted().then(setPersisted);
+  }, []);
+
+  const backupDays = lastBackupAt ? Math.floor((now - lastBackupAt) / 86400000) : null;
+  const backupTone = backupDays === null || backupDays > 30 ? "#ef4444" : backupDays > 7 ? "#f59e0b" : "#12b76a";
+  const backupText =
+    backupDays === null ? "Never backed up" : backupDays === 0 ? "Backed up today" : `Last backup ${backupDays} day${backupDays === 1 ? "" : "s"} ago`;
 
   const exportData = () => {
     const { categories, tasks, sessions, journals, dayCategories, settings } = useStore.getState();
@@ -197,6 +221,7 @@ function DataSection() {
     a.download = `focus-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+    useStore.getState().updateSettings({ lastBackupAt: Date.now() });
   };
 
   const importData = async (file: File) => {
@@ -213,6 +238,42 @@ function DataSection() {
 
   return (
     <Section title="Data" description="Everything is stored locally in this browser. Clearing site data deletes it, so export a backup regularly.">
+      <div className="flex flex-col gap-2">
+        <div
+          className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm"
+          style={{ background: `color-mix(in srgb, ${backupTone} 10%, var(--card))` }}
+        >
+          <span className="grid h-8 w-8 place-items-center rounded-lg text-white" style={{ background: backupTone }}>
+            <Download size={15} />
+          </span>
+          <div className="flex-1">
+            <p className="font-semibold">{backupText}</p>
+            <p className="text-xs text-muted">Export weekly so you can restore everything if browser data is cleared.</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl bg-card-2 px-3.5 py-2.5 text-sm">
+          <span
+            className={`grid h-8 w-8 place-items-center rounded-lg text-white ${persisted ? "bg-emerald-500" : "bg-slate-400"}`}
+          >
+            <ShieldCheck size={15} />
+          </span>
+          <div className="flex-1">
+            <p className="font-semibold">
+              {persisted === null ? "Checking storage protection…" : persisted ? "Protected storage on" : "Protected storage off"}
+            </p>
+            <p className="text-xs text-muted">
+              {persisted
+                ? "The browser won't clear this data automatically to free up space."
+                : "The browser may clear this data under storage pressure. Your browser decides whether to grant protection."}
+            </p>
+          </div>
+          {persisted === false && (
+            <Button size="sm" variant="secondary" onClick={() => requestPersistentStorage().then(setPersisted)}>
+              Request
+            </Button>
+          )}
+        </div>
+      </div>
       <div className="grid grid-cols-3 gap-2">
         <Metric label="Tasks" value={String(taskCount)} />
         <Metric label="Sessions" value={String(sessionCount)} />

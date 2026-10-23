@@ -3,11 +3,11 @@
 import { plainText } from "@/lib/links";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, CalendarDays, Flame, Home, Moon, NotebookPen, Plus, Settings, Sun, Timer } from "lucide-react";
+import { BarChart3, CalendarDays, Check, Flame, Home, Moon, NotebookPen, Pause, Plus, Settings, Sun, Timer } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "@/lib/store";
 import { useActiveSession, useMounted, useNow, useToday } from "@/lib/hooks";
-import { dayTotals, streaks } from "@/lib/selectors";
+import { dayTotals, streaks, titleKey } from "@/lib/selectors";
 import { formatClock } from "@/lib/time";
 import { solid } from "@/lib/colors";
 import { CategoryIcon } from "@/lib/icons";
@@ -15,10 +15,11 @@ import { Toaster } from "./ui";
 import { TimerEffects } from "./TimerEffects";
 import { TaskDetail } from "./TaskDetail";
 import { CategoryForm } from "./CategoryForm";
+import { requestPersistentStorage } from "@/lib/persist";
 
 const NAV = [
   { href: "/", label: "Today", icon: Home, color: "#2f6bff" },
-  { href: "/day", label: "Journal", icon: NotebookPen, color: "#f97316" },
+  { href: "/journal", label: "Journal", icon: NotebookPen, color: "#f97316" },
   { href: "/calendar", label: "Calendar", icon: CalendarDays, color: "#10b981" },
   { href: "/stats", label: "Insights", icon: BarChart3, color: "#8b5cf6" },
   { href: "/settings", label: "Settings", icon: Settings, color: "#64748b" },
@@ -37,6 +38,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
+  // Protect locally stored data from automatic browser eviction
+  useEffect(() => {
+    requestPersistentStorage();
+  }, []);
+
   // Keep multiple open tabs in sync
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -52,10 +58,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       {mounted && <Sidebar />}
       <div className="flex min-w-0 flex-1 flex-col">
         {mounted && <MobileTopBar />}
-        <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 pb-24 pt-5 md:px-8 md:pb-10 md:pt-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 pb-40 pt-5 md:px-8 md:pb-10 md:pt-8">{children}</main>
       </div>
       {mounted && (
         <>
+          <MobileTimerBar />
           <MobileNav />
           <TimerEffects />
           <TaskDetail />
@@ -100,7 +107,8 @@ function Sidebar() {
   const [creating, setCreating] = useState(false);
   const streak = useStreak();
   const todayCount = tasks.filter((t) => t.date === today).length;
-  const countFor = (id: string) => tasks.filter((t) => t.categoryId === id).length;
+  // Unique tasks (same title on several days counts once), matching the category page
+  const countFor = (id: string) => new Set(tasks.filter((t) => t.categoryId === id).map((t) => titleKey(t.title))).size;
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-line bg-card px-4 py-6 md:flex">
@@ -150,13 +158,23 @@ function Sidebar() {
       <ul className="mt-2 flex flex-col gap-0.5">
         {categories
           .filter((c) => !c.archived)
-          .map((c) => (
-            <li key={c.id} className="flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium text-ink-2">
-              <CategoryIcon icon={c.icon} color={c.color} size="sm" variant="solid" />
-              <span className="flex-1 truncate">{c.name}</span>
-              <span className="text-xs text-muted tnum">{countFor(c.id)}</span>
-            </li>
-          ))}
+          .map((c) => {
+            const active = isActive(`/categories/${c.id}`);
+            return (
+              <li key={c.id}>
+                <Link
+                  href={`/categories/${c.id}`}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] transition-colors ${
+                    active ? "bg-accent-soft font-semibold text-ink" : "font-medium text-ink-2 hover:bg-card-2"
+                  }`}
+                >
+                  <CategoryIcon icon={c.icon} color={c.color} size="sm" variant="solid" />
+                  <span className="flex-1 truncate">{c.name}</span>
+                  <span className="text-xs text-muted tnum">{countFor(c.id)}</span>
+                </Link>
+              </li>
+            );
+          })}
       </ul>
       <CategoryForm open={creating} onClose={() => setCreating(false)} onSave={(v) => addCategory(v.name, v.icon, v.color)} />
 
@@ -226,21 +244,11 @@ function RunningCard() {
 }
 
 function MobileTopBar() {
-  const running = useRunning();
   const streak = useStreak();
   return (
     <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-card/90 px-4 py-3 backdrop-blur md:hidden">
       <Logo />
       <div className="ml-auto flex items-center gap-2">
-        {running && (
-          <span
-            className="flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-xs font-semibold text-white tnum"
-            style={{ background: running.category ? solid(running.category.color) : "var(--accent)" }}
-          >
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-            {formatClock(running.total)}
-          </span>
-        )}
         <span className="flex items-center gap-1 rounded-full bg-gradient-to-br from-[#ff9a3c] to-[#ff5f45] px-2.5 py-1 text-xs font-bold text-white">
           <Flame size={13} /> {streak.current}
         </span>
@@ -267,5 +275,41 @@ function MobileNav() {
         );
       })}
     </nav>
+  );
+}
+
+/** Running timer pinned above the bottom tabs on phones, where the right rail is far down */
+function MobileTimerBar() {
+  const running = useRunning();
+  const { pauseActive, finishTask } = useStore.getState();
+  if (!running) return null;
+  const { task, category, total } = running;
+  const color = category ? solid(category.color) : "var(--accent)";
+  return (
+    <div className="fixed inset-x-3 bottom-[68px] z-40 flex items-center gap-3 rounded-2xl border border-line bg-card/95 py-2 pl-2 pr-2 shadow-lg backdrop-blur md:hidden">
+      {category && <CategoryIcon icon={category.icon} color={category.color} size="md" variant="solid" />}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold">{plainText(task.title)}</p>
+        <p className="flex items-center gap-1.5 font-mono text-xs font-semibold tnum" style={{ color }}>
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: color }} />
+          {formatClock(total)}
+        </p>
+      </div>
+      <button
+        onClick={() => pauseActive()}
+        aria-label="Pause"
+        className="grid h-10 w-10 place-items-center rounded-full text-white"
+        style={{ background: color }}
+      >
+        <Pause size={16} className="fill-current" />
+      </button>
+      <button
+        onClick={() => finishTask(task.id)}
+        aria-label="Complete"
+        className="grid h-10 w-10 place-items-center rounded-full bg-emerald-500 text-white"
+      >
+        <Check size={17} strokeWidth={3} />
+      </button>
+    </div>
   );
 }

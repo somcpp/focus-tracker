@@ -2,13 +2,12 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { dayKey } from "@/lib/time";
 
-/** /day → today's journal */
+/** Old route: the journal now lives at /journal */
 export default function DayIndex() {
   const router = useRouter();
   useEffect(() => {
-    router.replace(`/day/${dayKey()}`);
+    router.replace("/journal");
   }, [router]);
   return null;
 }

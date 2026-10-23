@@ -42,11 +42,24 @@ export interface Session {
   end: number | null;
 }
 
+export interface PlanItem {
+  id: string;
+  text: string;
+  done: boolean;
+  /** Set once the item was turned into a task on the next day */
+  taskId: string | null;
+}
+
 export interface Journal {
   date: string;
   mood: number | null; // 1-5
-  reflection: string;
-  plan: string;
+  wins: string;
+  challenges: string;
+  learnings: string;
+  /** Free-form writing (v2 "reflection" migrates here) */
+  notes: string;
+  /** Plan for the following day */
+  plan: PlanItem[];
 }
 
 export interface Settings {
@@ -60,6 +73,10 @@ export interface Settings {
     focusMinutes: number;
     breakMinutes: number;
   };
+  /** Timestamp of the last JSON export */
+  lastBackupAt: number | null;
+  /** Day key on which the "Start your day" card was dismissed */
+  startDayDismissedOn: string | null;
 }
 
 export interface PersistedState {

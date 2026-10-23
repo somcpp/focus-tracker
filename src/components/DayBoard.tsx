@@ -96,6 +96,7 @@ function CategorySection({
   activeTaskId: string | null;
 }) {
   const [open, setOpen] = useState(true);
+  const [showDone, setShowDone] = useState(false);
   const [title, setTitle] = useState("");
   const addTask = useStore((s) => s.addTask);
   const startTask = useStore((s) => s.startTask);
@@ -179,16 +180,28 @@ function CategorySection({
           >
             <div className="border-t border-line">
               <AnimatePresence initial={false}>
-                {tasks.map((t) => (
-                  <TaskRow
-                    key={t.id}
-                    task={t}
-                    category={category}
-                    ms={taskMs(t.id, byTask, now)}
-                    running={t.id === activeTaskId}
-                  />
-                ))}
+                {tasks
+                  .filter((t) => !t.done || showDone)
+                  .map((t) => (
+                    <TaskRow
+                      key={t.id}
+                      task={t}
+                      category={category}
+                      ms={taskMs(t.id, byTask, now)}
+                      running={t.id === activeTaskId}
+                    />
+                  ))}
               </AnimatePresence>
+              {doneCount > 0 && (
+                <button
+                  onClick={() => setShowDone((v) => !v)}
+                  className="flex w-full items-center gap-2 border-b border-line px-5 py-2 text-left text-[12.5px] font-semibold text-muted hover:bg-subtle hover:text-ink"
+                >
+                  <Check size={14} className="text-emerald-500" strokeWidth={3} />
+                  {showDone ? "Hide" : "Show"} {doneCount} completed
+                  <ChevronDown size={14} className={`transition-transform ${showDone ? "rotate-180" : ""}`} />
+                </button>
+              )}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();

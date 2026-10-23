@@ -1,4 +1,4 @@
-import type { Category, Session, Task } from "./types";
+import type { Category, Journal, Session, Task } from "./types";
 import { addDays, dayKey } from "./time";
 
 export const sessionMs = (s: Session, now: number) => Math.max(0, (s.end ?? now) - s.start);
@@ -78,6 +78,30 @@ export function categoriesForDay(
 ): Category[] {
   const ids = [...(dayCategories[date] ?? [])];
   for (const t of tasks) if (t.date === date && !ids.includes(t.categoryId)) ids.push(t.categoryId);
-  const byId = new Map(categories.map((c) => [c.id, c]));
-  return ids.map((id) => byId.get(id)).filter((c): c is Category => !!c);
+  // Follow the global category order (set in Settings)
+  const set = new Set(ids);
+  return categories.filter((c) => set.has(c.id));
 }
+
+export function journalHasContent(j: Journal | undefined): boolean {
+  if (!j) return false;
+  return (
+    j.mood !== null ||
+    !!(j.wins.trim() || j.challenges.trim() || j.learnings.trim() || j.notes.trim()) ||
+    j.plan.length > 0
+  );
+}
+
+/** Consecutive days (ending today, or yesterday if today has no entry yet) with a journal entry */
+export function journalStreak(journals: Record<string, Journal>, today = dayKey()): number {
+  let cursor = journalHasContent(journals[today]) ? today : addDays(today, -1);
+  let n = 0;
+  while (journalHasContent(journals[cursor])) {
+    n++;
+    cursor = addDays(cursor, -1);
+  }
+  return n;
+}
+
+/** Normalised title used to group the same problem across days */
+export const titleKey = (title: string) => title.trim().toLowerCase().replace(/\/+$/, "");

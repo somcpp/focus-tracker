@@ -6,6 +6,7 @@ import type {
   Category,
   ColorKey,
   Journal,
+  PlanItem,
   PersistedState,
   Session,
   Settings,
@@ -34,10 +35,46 @@ function migrateCategories(cats: (Category & { emoji?: string })[]): Category[] 
   }));
 }
 
-const uid = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
+/** v2 journals had a single reflection text and a plan string */
+type LegacyJournal = Partial<Journal> & { reflection?: string; plan?: string | PlanItem[] };
+function migrateJournals(journals: Record<string, LegacyJournal>): Record<string, Journal> {
+  const out: Record<string, Journal> = {};
+  for (const [date, j] of Object.entries(journals ?? {})) {
+    const plan = Array.isArray(j.plan)
+      ? j.plan
+      : (j.plan ?? "")
+          .split("\n")
+          .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)]|\[[ x]\])\s*/i, "").trim())
+          .filter(Boolean)
+          .map((text) => ({ id: uid(), text, done: false, taskId: null }));
+    out[date] = {
+      date,
+      mood: j.mood ?? null,
+      wins: j.wins ?? "",
+      challenges: j.challenges ?? "",
+      learnings: j.learnings ?? "",
+      notes: j.notes ?? j.reflection ?? "",
+      plan,
+    };
+  }
+  return out;
+}
+
+export const emptyJournal = (date: string): Journal => ({
+  date,
+  mood: null,
+  wins: "",
+  challenges: "",
+  learnings: "",
+  notes: "",
+  plan: [],
+});
+
+function uid() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   name: "",
@@ -46,6 +83,8 @@ export const DEFAULT_SETTINGS: Settings = {
   idleLimitMinutes: 180,
   theme: "light",
   pomodoro: { enabled: false, focusMinutes: 25, breakMinutes: 5 },
+  lastBackupAt: null,
+  startDayDismissedOn: null,
 };
 
 const seedCategories = (): Category[] => [
@@ -67,6 +106,8 @@ interface Actions {
   addCategory: (name: string, icon: string, color: ColorKey) => string;
   updateCategory: (id: string, patch: Partial<Omit<Category, "id">>) => void;
   deleteCategory: (id: string) => void;
+  /** Move a category up (-1) or down (+1) in the display order */
+  moveCategory: (id: string, delta: -1 | 1) => void;
   addCategoryToDay: (date: string, categoryId: string) => void;
   removeCategoryFromDay: (date: string, categoryId: string) => void;
   // tasks
@@ -84,7 +125,12 @@ interface Actions {
   updateSession: (id: string, patch: Partial<Pick<Session, "start" | "end">>) => void;
   deleteSession: (id: string) => void;
   // journal & settings
-  saveJournal: (date: string, patch: Partial<Omit<Journal, "date">>) => void;
+  saveJournal: (date: string, patch: Partial<Omit<Journal, "date" | "plan">>) => void;
+  addPlanItem: (date: string, text: string) => void;
+  updatePlanItem: (date: string, id: string, patch: Partial<Omit<PlanItem, "id">>) => void;
+  removePlanItem: (date: string, id: string) => void;
+  /** Turn a plan item from `journalDate` into a task on `taskDate` */
+  planItemToTask: (journalDate: string, itemId: string, categoryId: string, taskDate: string) => string | null;
   updateSettings: (patch: Partial<Settings>) => void;
   importData: (data: PersistedState) => void;
   resetAll: () => void;
@@ -128,6 +174,15 @@ export const useStore = create<Store>()(
             sessions: st.sessions.filter((s) => !taskIds.has(s.taskId)),
             dayCategories,
           };
+        }),
+      moveCategory: (id, delta) =>
+        set((st) => {
+          const i = st.categories.findIndex((c) => c.id === id);
+          const j = i + delta;
+          if (i < 0 || j < 0 || j >= st.categories.length) return {};
+          const next = [...st.categories];
+          [next[i], next[j]] = [next[j], next[i]];
+          return { categories: next };
         }),
       addCategoryToDay: (date, categoryId) =>
         set((st) => {
@@ -251,21 +306,42 @@ export const useStore = create<Store>()(
 
       saveJournal: (date, patch) =>
         set((st) => ({
-          journals: {
-            ...st.journals,
-            [date]: {
-              ...(st.journals[date] ?? { date, mood: null, reflection: "", plan: "" }),
-              ...patch,
-            },
-          },
+          journals: { ...st.journals, [date]: { ...(st.journals[date] ?? emptyJournal(date)), ...patch } },
         })),
+      addPlanItem: (date, text) =>
+        set((st) => {
+          const j = st.journals[date] ?? emptyJournal(date);
+          const item: PlanItem = { id: uid(), text: text.trim(), done: false, taskId: null };
+          return { journals: { ...st.journals, [date]: { ...j, plan: [...j.plan, item] } } };
+        }),
+      updatePlanItem: (date, id, patch) =>
+        set((st) => {
+          const j = st.journals[date];
+          if (!j) return {};
+          return {
+            journals: { ...st.journals, [date]: { ...j, plan: j.plan.map((p) => (p.id === id ? { ...p, ...patch } : p)) } },
+          };
+        }),
+      removePlanItem: (date, id) =>
+        set((st) => {
+          const j = st.journals[date];
+          if (!j) return {};
+          return { journals: { ...st.journals, [date]: { ...j, plan: j.plan.filter((p) => p.id !== id) } } };
+        }),
+      planItemToTask: (journalDate, itemId, categoryId, taskDate) => {
+        const item = get().journals[journalDate]?.plan.find((p) => p.id === itemId);
+        if (!item || item.taskId) return null;
+        const taskId = get().addTask(taskDate, categoryId, item.text);
+        get().updatePlanItem(journalDate, itemId, { taskId });
+        return taskId;
+      },
       updateSettings: (patch) => set((st) => ({ settings: { ...st.settings, ...patch } })),
       importData: (data) =>
         set({
           categories: migrateCategories(data.categories ?? []),
           tasks: data.tasks ?? [],
           sessions: data.sessions ?? [],
-          journals: data.journals ?? {},
+          journals: migrateJournals(data.journals ?? {}),
           dayCategories: data.dayCategories ?? {},
           settings: { ...DEFAULT_SETTINGS, ...data.settings },
         }),
@@ -273,10 +349,14 @@ export const useStore = create<Store>()(
     }),
     {
       name: "grindlog-v1",
-      version: 2,
+      version: 3,
       migrate: (persisted) => {
         const p = persisted as PersistedState;
-        return { ...p, categories: migrateCategories(p.categories ?? []) };
+        return {
+          ...p,
+          categories: migrateCategories(p.categories ?? []),
+          journals: migrateJournals(p.journals ?? {}),
+        };
       },
       storage: createJSONStorage(() => localStorage),
       partialize: (st): PersistedState => ({
