@@ -3,17 +3,17 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg: #ffffff;
-  --subtle: #f8fafc;
+  --bg: #f4f7fc;
+  --subtle: #f7f9fd;
   --card: #ffffff;
-  --card-2: #f4f5f7;
-  --ink: #0f172a;
-  --ink-2: #334155;
-  --muted: #64748b;
-  --line: #e5e7eb;
-  --line-strong: #d1d5db;
-  --accent: #2563eb;
-  --accent-soft: #eff6ff;
+  --card-2: #f1f4f9;
+  --ink: #111827;
+  --ink-2: #374151;
+  --muted: #6b7280;
+  --line: #e8ecf3;
+  --line-strong: #d5dbe5;
+  --accent: #2f6bff;
+  --accent-soft: #eaf1ff;
   --heat-0: #eef0f3;
   --heat-1: #c6f0d2;
   --heat-2: #7ddc9a;
@@ -31,8 +31,8 @@
   --muted: #8b95a7;
   --line: #232833;
   --line-strong: #2e3542;
-  --accent: #3b82f6;
-  --accent-soft: #172036;
+  --accent: #4b7dff;
+  --accent-soft: #18223d;
   --heat-0: #1a1e27;
   --heat-1: #12452a;
   --heat-2: #186a3b;
@@ -73,10 +73,10 @@ body {
 @utility card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 0.875rem;
+  border-radius: 1.125rem;
   box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 1px 3px rgba(15, 23, 42, 0.03);
+    0 1px 2px rgba(17, 24, 39, 0.03),
+    0 6px 20px -8px rgba(47, 107, 255, 0.08);
 }
 
 @utility tnum {

@@ -2,6 +2,7 @@
 
 import type { LucideIcon } from "lucide-react";
 
+/** Pastel KPI card: tinted background, solid round icon, big number, colored label */
 export function StatCard({
   icon: Icon,
   label,
@@ -16,18 +17,29 @@ export function StatCard({
   color: string;
 }) {
   return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-muted">{label}</p>
-        <span
-          className="grid h-7 w-7 place-items-center rounded-lg"
-          style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}
-        >
-          <Icon size={15} strokeWidth={2.3} />
-        </span>
+    <div
+      className="flex items-center gap-3.5 rounded-2xl border p-4"
+      style={{
+        background: `color-mix(in srgb, ${color} 8%, var(--card))`,
+        borderColor: `color-mix(in srgb, ${color} 16%, var(--line))`,
+      }}
+    >
+      <span
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white"
+        style={{
+          background: `linear-gradient(140deg, color-mix(in srgb, ${color} 75%, white), ${color})`,
+          boxShadow: `0 6px 14px -6px ${color}`,
+        }}
+      >
+        <Icon size={20} strokeWidth={2.4} />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-[22px] font-bold leading-tight tracking-tight tnum">{value}</p>
+        <p className="truncate text-[13px] font-medium" style={{ color }}>
+          {label}
+        </p>
+        {sub && <p className="truncate text-[11px] text-muted">{sub}</p>}
       </div>
-      <p className="mt-2 text-2xl font-semibold tracking-tight tnum">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
     </div>
   );
 }

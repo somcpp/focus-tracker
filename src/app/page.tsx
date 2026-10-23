@@ -2,197 +2,173 @@
 
 import { ClientOnly } from "@/components/ClientOnly";
 import Link from "next/link";
-import { ArrowRight, Check, CheckCircle2, Clock3, Flame, History, NotebookPen, Pause, Pin, Play, Target } from "lucide-react";
+import { CheckCircle2, Clock3, History, Layers, NotebookPen, Pin, Sun, Timer } from "lucide-react";
 import { useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { useActiveSession, useNow, useToday } from "@/lib/hooks";
-import { categoryTotals, dayTotals, sessionsByTask, streaks, taskMs } from "@/lib/selectors";
-import { addDays, formatClock, formatDuration, greeting, parseDayKey, prettyDate } from "@/lib/time";
-import { HEAT, heatLevel, solid, tint } from "@/lib/colors";
-import { CategoryIcon } from "@/lib/icons";
+import { categoryTotals, dayTotals } from "@/lib/selectors";
+import { addDays, formatDuration, greeting, prettyDate } from "@/lib/time";
 import { DayBoard } from "@/components/DayBoard";
 import { DayBreakdown } from "@/components/DayBreakdown";
-import { ProgressRing } from "@/components/ProgressRing";
+import { FocusTimer } from "@/components/FocusTimer";
+import { MiniCalendar } from "@/components/MiniCalendar";
+import { QuickAdd } from "@/components/QuickAdd";
 import { StatCard } from "@/components/StatCard";
-import { Button, PageHeader, SectionTitle, toast } from "@/components/ui";
+import { Button, SectionTitle, toast } from "@/components/ui";
+
+const QUOTES = [
+  "Progress over perfection.",
+  "Small steps every day.",
+  "Consistency beats intensity.",
+  "Focus on the next hour, not the whole day.",
+  "Done is better than perfect.",
+  "One problem at a time.",
+  "Show up, even when it's hard.",
+];
 
 function TodayPage() {
   const today = useToday();
   const name = useStore((s) => s.settings.name);
+  const quote = QUOTES[new Date().getDate() % QUOTES.length];
+
   return (
-    <>
-      <PageHeader
-        title={`${greeting()}${name ? `, ${name}` : ""}`}
-        subtitle={prettyDate(today, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-        actions={
-          <Link href={`/day/${today}`}>
-            <Button variant="secondary">
-              <NotebookPen size={15} /> Daily review
-            </Button>
-          </Link>
-        }
-      />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <FocusCard today={today} />
-          <KpiRow today={today} />
-          <CarryOver today={today} />
-          <YesterdayPlan today={today} />
-          <div className="mt-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Today&apos;s work</h2>
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="flex min-w-0 flex-col gap-5">
+        <header className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-[28px] font-bold leading-tight tracking-tight md:text-[32px]">
+              {greeting()}
+              {name ? `, ${name}` : ""}!
+            </h1>
+            <p className="mt-1 text-[15px] text-muted">Let&apos;s make today productive.</p>
           </div>
-          <DayBoard date={today} />
-        </div>
-        <aside className="flex flex-col gap-4">
-          <SideStats today={today} />
-        </aside>
+          <div className="text-right">
+            <p className="text-[15px] font-medium text-ink-2">
+              {prettyDate(today, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+            </p>
+            <p className="mt-1 flex items-center justify-end gap-1.5 text-[13px] italic text-muted">
+              <Sun size={15} className="text-amber-400" /> “{quote}”
+            </p>
+          </div>
+        </header>
+
+        <KpiRow today={today} />
+        <CarryOver today={today} />
+        <YesterdayPlan today={today} />
+        <WorkHeader today={today} />
+        <DayBoard date={today} />
       </div>
-    </>
+
+      <aside className="flex flex-col gap-5">
+        <div className="card p-5">
+          <FocusTimer today={today} />
+        </div>
+        <div className="card p-5">
+          <CalendarWidget today={today} />
+        </div>
+        <div className="card p-5">
+          <QuickAdd date={today} />
+        </div>
+        <SplitCard today={today} />
+      </aside>
+    </div>
   );
 }
 
-function FocusCard({ today }: { today: string }) {
+function useTodayData(today: string, interval = 5000) {
   const active = useActiveSession();
-  const now = useNow(!!active);
+  const now = useNow(!!active, interval);
   const tasks = useStore((s) => s.tasks);
   const sessions = useStore((s) => s.sessions);
-  const categories = useStore((s) => s.categories);
-  const goalMinutes = useStore((s) => s.settings.dailyGoalMinutes);
-  const { startTask, pauseActive, finishTask } = useStore.getState();
-
-  const todayMs = dayTotals(tasks, sessions, now).get(today) ?? 0;
-  const goalMs = goalMinutes * 60000;
-  const task = active ? tasks.find((t) => t.id === active.taskId) : undefined;
-  const cat = task ? categories.find((c) => c.id === task.categoryId) : undefined;
-  const byTask = useMemo(() => sessionsByTask(sessions), [sessions]);
-  const taskTotal = task ? taskMs(task.id, byTask, now) : 0;
-
-  // Most recently tracked unfinished task, offered as a quick resume
-  const last = !active
-    ? [...sessions]
-        .sort((a, b) => b.start - a.start)
-        .map((s) => tasks.find((t) => t.id === s.taskId))
-        .find((t) => t && !t.done && t.date === today)
-    : undefined;
-  const lastCat = last ? categories.find((c) => c.id === last.categoryId) : undefined;
-  const goalHit = todayMs >= goalMs;
-
-  return (
-    <section className="card overflow-hidden">
-      <div className="flex flex-col items-stretch sm:flex-row">
-        <div
-          className="relative flex min-w-0 flex-1 flex-col justify-center gap-1 p-5 md:p-6"
-          style={cat ? { background: `linear-gradient(135deg, ${tint(cat.color, 9)}, var(--card) 70%)` } : undefined}
-        >
-          {task && cat ? (
-            <>
-              <div className="flex items-center gap-2 text-xs font-medium">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: solid(cat.color) }} />
-                  <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: solid(cat.color) }} />
-                </span>
-                <span style={{ color: solid(cat.color) }}>Tracking</span>
-                <span className="text-muted">· {cat.name}</span>
-              </div>
-              <h2 className="truncate text-xl font-semibold tracking-tight">{task.title}</h2>
-              <p className="font-mono text-4xl font-semibold tracking-tight tnum md:text-5xl">{formatClock(taskTotal)}</p>
-              <div className="mt-3 flex gap-2">
-                <Button variant="secondary" onClick={() => pauseActive()}>
-                  <Pause size={15} className="fill-current" /> Pause
-                </Button>
-                <Button
-                  variant="success"
-                  onClick={() => {
-                    finishTask(task.id);
-                    toast({ tone: "success", text: `Completed “${task.title}”` });
-                  }}
-                >
-                  <Check size={15} strokeWidth={3} /> Complete
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-xs font-medium text-muted">No timer running</p>
-              <h2 className="text-xl font-semibold tracking-tight">
-                {todayMs === 0 ? "Ready when you are" : goalHit ? "Daily goal reached" : "Paused"}
-              </h2>
-              <p className="text-sm text-muted">
-                {todayMs === 0
-                  ? "Add a task below and press play to start tracking."
-                  : goalHit
-                    ? "Everything from here is extra. Nice work."
-                    : `${formatDuration(goalMs - todayMs)} left to reach today's goal.`}
-              </p>
-              {last && (
-                <button
-                  onClick={() => startTask(last.id)}
-                  className="mt-3 flex w-fit items-center gap-3 rounded-xl border border-line bg-card py-2 pl-2 pr-4 text-left shadow-sm transition-colors hover:bg-subtle"
-                >
-                  {lastCat && <CategoryIcon icon={lastCat.icon} color={lastCat.color} size="sm" />}
-                  <span className="min-w-0">
-                    <span className="block text-[11px] text-muted">Resume</span>
-                    <span className="block max-w-56 truncate text-sm font-medium">{last.title}</span>
-                  </span>
-                  <Play size={15} className="ml-2 fill-current text-accent" />
-                </button>
-              )}
-            </>
-          )}
-        </div>
-        <div className="flex items-center justify-center gap-4 border-t border-line p-5 sm:border-l sm:border-t-0 md:px-8">
-          <ProgressRing value={todayMs / goalMs} color={goalHit ? "#10b981" : "var(--accent)"}>
-            <div>
-              <p className="text-xl font-semibold tracking-tight tnum">{formatDuration(todayMs)}</p>
-              <p className="text-[11px] text-muted">of {formatDuration(goalMs)}</p>
-            </div>
-          </ProgressRing>
-        </div>
-      </div>
-    </section>
-  );
+  return { now, tasks, sessions, totals: dayTotals(tasks, sessions, now), todays: tasks.filter((t) => t.date === today) };
 }
 
 function KpiRow({ today }: { today: string }) {
-  const active = useActiveSession();
-  const now = useNow(!!active, 5000);
-  const tasks = useStore((s) => s.tasks);
-  const sessions = useStore((s) => s.sessions);
-  const settings = useStore((s) => s.settings);
-  const totals = dayTotals(tasks, sessions, now);
-  const st = streaks(totals, settings.streakMinMinutes, today);
-  const todays = tasks.filter((t) => t.date === today);
+  const { totals, todays, sessions } = useTodayData(today);
   const ids = new Set(todays.map((t) => t.id));
   const todaySessions = sessions.filter((s) => ids.has(s.taskId));
-  const yesterday = totals.get(addDays(today, -1)) ?? 0;
+  const tracked = new Set(todaySessions.map((s) => s.taskId));
   const todayMs = totals.get(today) ?? 0;
+  const yesterday = totals.get(addDays(today, -1)) ?? 0;
   const diff = todayMs - yesterday;
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <StatCard
         icon={Clock3}
-        color="#3b82f6"
+        color="#2f6bff"
         label="Focus time"
         value={formatDuration(todayMs)}
-        sub={yesterday ? `${diff >= 0 ? "+" : "−"}${formatDuration(Math.abs(diff))} vs yesterday` : "Today"}
+        sub={yesterday ? `${diff >= 0 ? "+" : "−"}${formatDuration(Math.abs(diff))} vs yday` : undefined}
       />
       <StatCard
         icon={CheckCircle2}
-        color="#10b981"
+        color="#12b76a"
         label="Completed"
         value={`${todays.filter((t) => t.done).length}/${todays.length}`}
-        sub="Tasks today"
       />
-      <StatCard icon={Target} color="#8b5cf6" label="Sessions" value={String(todaySessions.length)} sub="Focus blocks" />
       <StatCard
-        icon={Flame}
+        icon={Timer}
         color="#f97316"
-        label="Streak"
-        value={`${st.current} day${st.current === 1 ? "" : "s"}`}
-        sub={st.todayHit || st.current === 0 ? `Best ${st.best}` : `${formatDuration(settings.streakMinMinutes * 60000 - todayMs)} to keep it`}
+        label="In progress"
+        value={String(todays.filter((t) => !t.done && tracked.has(t.id)).length)}
       />
+      <StatCard icon={Layers} color="#8b5cf6" label="Sessions" value={String(todaySessions.length)} />
     </div>
+  );
+}
+
+function WorkHeader({ today }: { today: string }) {
+  const { totals, todays } = useTodayData(today, 1000);
+  const goalMinutes = useStore((s) => s.settings.dailyGoalMinutes);
+  const todayMs = totals.get(today) ?? 0;
+  const pct = Math.min(1, todayMs / (goalMinutes * 60000));
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+        Today
+        <span className="grid h-6 min-w-6 place-items-center rounded-full bg-accent-soft px-2 text-xs font-semibold text-accent">
+          {todays.length}
+        </span>
+      </h2>
+      <div className="ml-auto flex items-center gap-3">
+        <div className="h-2 w-36 overflow-hidden rounded-full bg-accent-soft">
+          <div
+            className="h-full rounded-full transition-[width] duration-700"
+            style={{
+              width: `${pct * 100}%`,
+              background: pct >= 1 ? "#12b76a" : "linear-gradient(90deg, #6aa1ff, var(--accent))",
+            }}
+          />
+        </div>
+        <span className="text-[13px] font-medium text-muted tnum">
+          <span className="font-semibold text-ink">{formatDuration(todayMs)}</span> / {formatDuration(goalMinutes * 60000)} goal
+        </span>
+        <Link href={`/day/${today}`}>
+          <Button size="sm" variant="secondary">
+            <NotebookPen size={14} /> Review
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function CalendarWidget({ today }: { today: string }) {
+  const { totals } = useTodayData(today, 60000);
+  const goalMinutes = useStore((s) => s.settings.dailyGoalMinutes);
+  return <MiniCalendar today={today} totals={totals} goalMinutes={goalMinutes} />;
+}
+
+function SplitCard({ today }: { today: string }) {
+  const { tasks, sessions, now } = useTodayData(today);
+  const categories = useStore((s) => s.categories);
+  const catTotals = useMemo(() => categoryTotals(tasks, sessions, new Set([today]), now), [tasks, sessions, today, now]);
+  return (
+    <section className="card p-5">
+      <SectionTitle>Time by category</SectionTitle>
+      <DayBreakdown totals={catTotals} categories={categories} />
+    </section>
   );
 }
 
@@ -209,10 +185,12 @@ function CarryOver({ today }: { today: string }) {
 
   if (!prev) return null;
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-2.5 text-sm dark:border-blue-900/60 dark:bg-blue-950/30">
-      <History size={16} className="text-blue-500" />
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200/70 bg-gradient-to-r from-blue-50 to-indigo-50/40 px-4 py-3 text-sm dark:border-blue-900/60 dark:from-blue-950/40 dark:to-transparent">
+      <span className="grid h-8 w-8 place-items-center rounded-full bg-accent text-white">
+        <History size={15} />
+      </span>
       <p className="flex-1">
-        <span className="font-medium">
+        <span className="font-semibold">
           {prev.count} unfinished task{prev.count > 1 ? "s" : ""}
         </span>{" "}
         <span className="text-muted">
@@ -248,71 +226,15 @@ function YesterdayPlan({ today }: { today: string }) {
   const plan = useStore((s) => s.journals[addDays(today, -1)]?.plan?.trim());
   if (!plan) return null;
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-      <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
-        <Pin size={13} /> Plan from yesterday
-      </p>
-      <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-2">{plan}</p>
+    <div className="flex gap-3 rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-orange-50/40 px-4 py-3 dark:border-amber-900/50 dark:from-amber-950/30 dark:to-transparent">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-400 text-white">
+        <Pin size={15} />
+      </span>
+      <div>
+        <p className="text-[13px] font-semibold text-amber-700 dark:text-amber-400">Your plan from yesterday</p>
+        <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-ink-2">{plan}</p>
+      </div>
     </div>
-  );
-}
-
-function SideStats({ today }: { today: string }) {
-  const active = useActiveSession();
-  const now = useNow(!!active, 5000);
-  const tasks = useStore((s) => s.tasks);
-  const sessions = useStore((s) => s.sessions);
-  const categories = useStore((s) => s.categories);
-  const goalMinutes = useStore((s) => s.settings.dailyGoalMinutes);
-
-  const totals = dayTotals(tasks, sessions, now);
-  const catTotals = categoryTotals(tasks, sessions, new Set([today]), now);
-  const week = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
-  const weekMs = week.reduce((s, d) => s + (totals.get(d) ?? 0), 0);
-  const maxDay = Math.max(goalMinutes * 60000, ...week.map((d) => totals.get(d) ?? 0));
-
-  return (
-    <>
-      <section className="card p-4">
-        <SectionTitle>Time by category</SectionTitle>
-        <DayBreakdown totals={catTotals} categories={categories} />
-      </section>
-
-      <section className="card p-4">
-        <SectionTitle right={<span className="tnum">{formatDuration(weekMs)}</span>}>Last 7 days</SectionTitle>
-        <div className="flex h-24 items-end gap-1.5">
-          {week.map((d) => {
-            const ms = totals.get(d) ?? 0;
-            return (
-              <Link key={d} href={`/day/${d}`} className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5" title={formatDuration(ms)}>
-                <span
-                  className="w-full rounded-md transition-opacity group-hover:opacity-80"
-                  style={{
-                    height: `${Math.max(4, (ms / maxDay) * 100)}%`,
-                    background: d === today ? "var(--accent)" : HEAT[Math.max(1, heatLevel(ms, goalMinutes))],
-                    opacity: ms === 0 ? 0.5 : 1,
-                  }}
-                />
-                <span className={`text-[10px] font-medium ${d === today ? "text-ink" : "text-muted"}`}>
-                  {parseDayKey(d).toLocaleDateString([], { weekday: "narrow" })}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      <Link href={`/day/${today}`} className="card group flex items-center gap-3 p-4 transition-colors hover:bg-subtle">
-        <span className="grid h-9 w-9 place-items-center rounded-lg bg-orange-500/12 text-orange-500">
-          <NotebookPen size={17} />
-        </span>
-        <div className="flex-1">
-          <p className="text-sm font-semibold">End-of-day review</p>
-          <p className="text-xs text-muted">Summary, journal and tomorrow&apos;s plan</p>
-        </div>
-        <ArrowRight size={16} className="text-muted transition-transform group-hover:translate-x-0.5" />
-      </Link>
-    </>
   );
 }
 

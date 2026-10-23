@@ -86,20 +86,28 @@ export function CategoryIcon({
   icon,
   color,
   size = "md",
+  variant = "soft",
   className = "",
 }: {
   icon: string;
   color: ColorKey;
   size?: keyof typeof SIZES;
+  /** soft: tinted tile + colored icon; solid: colored tile + white icon */
+  variant?: "soft" | "solid";
   className?: string;
 }) {
   const Icon = ICONS[icon] ?? Layers;
   const s = SIZES[size];
+  const style =
+    variant === "solid"
+      ? {
+          background: `linear-gradient(140deg, color-mix(in srgb, ${solid(color)} 80%, white), ${solid(color)})`,
+          color: "#fff",
+          boxShadow: `0 3px 8px -2px color-mix(in srgb, ${solid(color)} 45%, transparent)`,
+        }
+      : { background: tint(color, 14), color: solid(color) };
   return (
-    <span
-      className={`grid shrink-0 place-items-center ${s.box} ${className}`}
-      style={{ background: tint(color, 14), color: solid(color) }}
-    >
+    <span className={`grid shrink-0 place-items-center ${s.box} ${className}`} style={style}>
       <Icon size={s.icon} strokeWidth={2.2} />
     </span>
   );

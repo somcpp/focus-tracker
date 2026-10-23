@@ -12,7 +12,19 @@ import { CategoryIcon } from "@/lib/icons";
 import { useUi } from "@/lib/ui-store";
 import type { Category, Session, Task } from "@/lib/types";
 import { CategoryForm } from "./CategoryForm";
-import { Badge, EmptyState, IconButton } from "./ui";
+import { EmptyState, IconButton } from "./ui";
+
+/** Pill tag in a color, like a label */
+function Pill({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center rounded-full px-2 py-px text-[11px] font-semibold"
+      style={{ color, background: `color-mix(in srgb, ${color} 12%, var(--card))` }}
+    >
+      {children}
+    </span>
+  );
+}
 
 /** Category sections + tasks for a given day. Used by Today and the day log editor. */
 export function DayBoard({ date }: { date: string }) {
@@ -30,13 +42,13 @@ export function DayBoard({ date }: { date: string }) {
   const byTask = useMemo(() => sessionsByTask(sessions), [sessions]);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {dayCats.length === 0 && (
         <div className="card">
           <EmptyState
             icon={FolderPlus}
             title="Nothing planned yet"
-            text="Add a category below, then list what you'll work on and press play to start tracking."
+            text="Pick a category below, add what you'll work on, and press play to start tracking."
           />
         </div>
       )}
@@ -90,6 +102,7 @@ function CategorySection({
   const total = tasks.reduce((sum, t) => sum + taskMs(t.id, byTask, now), 0);
   const doneCount = tasks.filter((t) => t.done).length;
   const hasRunning = tasks.some((t) => t.id === activeTaskId);
+  const color = solid(category.color);
 
   const submit = (andStart: boolean) => {
     if (!title.trim()) return;
@@ -111,27 +124,34 @@ function CategorySection({
             setOpen((o) => !o);
           }
         }}
-        className="flex cursor-pointer select-none items-center gap-3 px-4 py-3 hover:bg-subtle"
+        className="flex cursor-pointer select-none items-center gap-3 px-5 py-3.5"
+        style={{ background: `linear-gradient(90deg, ${tint(category.color, 9)}, var(--card) 65%)` }}
       >
-        <CategoryIcon icon={category.icon} color={category.color} />
+        <CategoryIcon icon={category.icon} color={category.color} variant="solid" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="truncate font-semibold">{category.name}</h3>
-            {hasRunning && <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: solid(category.color) }} />}
+            <h3 className="truncate text-[16px] font-bold">{category.name}</h3>
+            {tasks.length > 0 && (
+              <Pill color={color}>
+                {doneCount}/{tasks.length} done
+              </Pill>
+            )}
+            {hasRunning && <span className="h-2 w-2 animate-pulse rounded-full" style={{ background: color }} />}
           </div>
-          <p className="text-xs text-muted">
-            {tasks.length === 0 ? "No tasks yet" : `${doneCount} of ${tasks.length} completed`}
-          </p>
+          {tasks.length > 0 ? (
+            <div className="mt-1.5 h-1.5 w-full max-w-48 overflow-hidden rounded-full" style={{ background: tint(category.color, 16) }}>
+              <div
+                className="h-full rounded-full transition-[width] duration-500"
+                style={{ width: `${(doneCount / tasks.length) * 100}%`, background: color }}
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-muted">No tasks yet</p>
+          )}
         </div>
-        {tasks.length > 0 && (
-          <div className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-card-2 sm:block">
-            <div
-              className="h-full rounded-full transition-[width] duration-500"
-              style={{ width: `${(doneCount / tasks.length) * 100}%`, background: solid(category.color) }}
-            />
-          </div>
-        )}
-        <span className="w-16 text-right text-sm font-semibold tnum">{formatDuration(total)}</span>
+        <span className="text-[15px] font-bold tnum" style={{ color: total ? color : undefined }}>
+          {formatDuration(total)}
+        </span>
         {tasks.length === 0 && (
           <IconButton
             label="Remove from this day"
@@ -172,10 +192,13 @@ function CategorySection({
                   e.preventDefault();
                   submit(false);
                 }}
-                className="flex items-center gap-3 px-4 py-2.5"
+                className="flex items-center gap-3 px-5 py-3"
               >
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-muted">
-                  <Plus size={15} />
+                <span
+                  className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-[1.5px] border-dashed"
+                  style={{ borderColor: color, color }}
+                >
+                  <Plus size={12} strokeWidth={3} />
                 </span>
                 <input
                   value={title}
@@ -187,14 +210,14 @@ function CategorySection({
                       submit(true);
                     }
                   }}
-                  className="min-w-0 flex-1 bg-transparent py-1 text-sm placeholder:text-muted"
+                  className="min-w-0 flex-1 bg-transparent py-1 text-[14.5px] placeholder:text-muted"
                 />
                 {title.trim() ? (
                   <button
                     type="button"
                     onClick={() => submit(true)}
-                    className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold text-white"
-                    style={{ background: solid(category.color) }}
+                    className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
+                    style={{ background: color }}
                   >
                     <Play size={11} className="fill-current" /> Add & start
                   </button>
@@ -226,58 +249,21 @@ function TaskRow({ task, category, ms, running }: { task: Task; category: Catego
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.15 }}
-      className="group relative flex items-center gap-3 border-b border-line px-4 py-2.5"
+      className="group relative flex items-center gap-3 border-b border-line px-5 py-3"
       style={running ? { background: tint(category.color, 7) } : undefined}
     >
       {running && (
         <>
-          <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: color }} />
+          <span className="absolute inset-y-0 left-0 w-1 rounded-r" style={{ background: color }} />
           <span className="running-sheen pointer-events-none absolute inset-0" />
         </>
       )}
-
-      {canPlay ? (
-        <button
-          aria-label={running ? "Pause" : "Start"}
-          title={running ? "Pause" : "Start timer"}
-          onClick={() => (running ? pauseActive() : startTask(task.id))}
-          className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full transition-transform hover:scale-105 active:scale-95"
-          style={running ? { background: color, color: "#fff" } : { background: tint(category.color, 14), color }}
-        >
-          {running ? <Pause size={14} className="fill-current" /> : <Play size={14} className="ml-0.5 fill-current" />}
-        </button>
-      ) : (
-        <span className="grid h-8 w-8 shrink-0 place-items-center">
-          <span className="h-2 w-2 rounded-full" style={{ background: color }} />
-        </span>
-      )}
-
-      <button onClick={() => openTask(task.id)} className="relative min-w-0 flex-1 text-left">
-        <p className={`truncate text-sm font-medium ${task.done ? "text-muted line-through" : ""}`}>{task.title}</p>
-        {(task.difficulty || task.notes.trim() || running) && (
-          <div className="mt-0.5 flex items-center gap-2">
-            {running && <span className="text-[11px] font-semibold" style={{ color }}>In progress</span>}
-            {task.difficulty && (
-              <Badge color={DIFFICULTY[task.difficulty].color}>{DIFFICULTY[task.difficulty].label}</Badge>
-            )}
-            {task.notes.trim() && (
-              <span className="flex items-center gap-1 text-[11px] text-muted">
-                <NotebookPen size={11} /> Notes
-              </span>
-            )}
-          </div>
-        )}
-      </button>
-
-      <span className={`relative font-mono text-sm tnum ${ms === 0 ? "text-muted" : running ? "font-semibold" : ""}`}>
-        {running ? formatClock(ms) : ms > 0 ? formatDuration(ms) : "—"}
-      </span>
 
       <button
         aria-label={task.done ? "Mark as not done" : "Mark as done"}
         title={task.done ? "Mark as not done" : "Complete (stops the timer)"}
         onClick={() => toggleDone(task.id)}
-        className={`relative grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors ${
+        className={`relative grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-[1.5px] transition-colors ${
           task.done
             ? "border-emerald-500 bg-emerald-500 text-white"
             : "border-line-strong text-transparent hover:border-emerald-500 hover:text-emerald-500"
@@ -285,6 +271,41 @@ function TaskRow({ task, category, ms, running }: { task: Task; category: Catego
       >
         <Check size={13} strokeWidth={3} />
       </button>
+
+      <button onClick={() => openTask(task.id)} className="relative flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 text-left">
+        <span className={`truncate text-[14.5px] font-medium ${task.done ? "text-muted line-through" : ""}`}>{task.title}</span>
+        {task.difficulty && <Pill color={DIFFICULTY[task.difficulty].color}>{DIFFICULTY[task.difficulty].label}</Pill>}
+        {task.notes.trim() && (
+          <span className="flex items-center gap-1 text-[11px] text-muted">
+            <NotebookPen size={11} /> Notes
+          </span>
+        )}
+      </button>
+
+      <span
+        className={`relative font-mono text-[13.5px] tnum ${ms === 0 ? "text-muted" : running ? "font-bold" : "text-ink-2"}`}
+        style={running ? { color } : undefined}
+      >
+        {running ? formatClock(ms) : ms > 0 ? formatDuration(ms) : "—"}
+      </span>
+
+      {canPlay ? (
+        <button
+          aria-label={running ? "Pause" : "Start"}
+          title={running ? "Pause" : "Start timer"}
+          onClick={() => (running ? pauseActive() : startTask(task.id))}
+          className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full transition-transform hover:scale-105 active:scale-95"
+          style={
+            running
+              ? { background: color, color: "#fff", boxShadow: `0 6px 14px -6px ${color}` }
+              : { background: tint(category.color, 13), color }
+          }
+        >
+          {running ? <Pause size={15} className="fill-current" /> : <Play size={15} className="ml-0.5 fill-current" />}
+        </button>
+      ) : (
+        <span className="w-9 shrink-0" />
+      )}
     </motion.div>
   );
 }
@@ -297,21 +318,22 @@ function AddCategoryRow({ date, usedIds }: { date: string; usedIds: string[] }) 
   const available = categories.filter((c) => !c.archived && !usedIds.includes(c.id));
 
   return (
-    <div className="flex flex-wrap items-center gap-2 pt-1">
-      <span className="mr-1 text-xs font-medium text-muted">Add category</span>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="mr-1 text-[13px] font-semibold text-muted">Add category</span>
       {available.map((c) => (
         <button
           key={c.id}
           onClick={() => addCategoryToDay(date, c.id)}
-          className="flex items-center gap-2 rounded-lg border border-line bg-card py-1 pl-1 pr-3 text-sm font-medium shadow-sm transition-colors hover:bg-subtle"
+          className="flex items-center gap-2 rounded-xl py-1.5 pl-1.5 pr-3.5 text-sm font-semibold transition-transform hover:-translate-y-px"
+          style={{ background: tint(c.color, 11), color: solid(c.color) }}
         >
-          <CategoryIcon icon={c.icon} color={c.color} size="xs" />
+          <CategoryIcon icon={c.icon} color={c.color} size="xs" variant="solid" />
           {c.name}
         </button>
       ))}
       <button
         onClick={() => setFormOpen(true)}
-        className="flex items-center gap-1.5 rounded-lg border border-dashed border-line-strong px-3 py-1.5 text-sm font-medium text-muted hover:text-ink"
+        className="flex items-center gap-1.5 rounded-xl border border-dashed border-line-strong px-3 py-1.5 text-sm font-semibold text-muted hover:border-accent hover:text-accent"
       >
         <Plus size={14} /> New category
       </button>

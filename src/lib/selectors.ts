@@ -1,7 +1,7 @@
 import type { Category, Session, Task } from "./types";
 import { addDays, dayKey } from "./time";
 
-export const sessionMs = (s: Session, now: number) => (s.end ?? now) - s.start;
+export const sessionMs = (s: Session, now: number) => Math.max(0, (s.end ?? now) - s.start);
 
 export function sessionsByTask(sessions: Session[]): Map<string, Session[]> {
   const map = new Map<string, Session[]>();
