@@ -1,36 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GrindLog ⏱️
 
-## Getting Started
+A colorful focus tracker: log what you're working on, hit play, and watch your hours, streaks and calendar fill up.
 
-First, run the development server:
+## Features
+
+- **Today**: categories (DSA, Dev, …) with collapsible task lists. Each task has play / pause / finish, and only one timer runs at a time.
+- **Live totals** per task, per category, and for the day, plus a goal progress ring.
+- **Task details**: notes, difficulty (easy / medium / hard), and editable sessions. You can add minutes by hand if you forgot to start the timer.
+- **Day log** for any date: timeline, category split, a copyable summary, and a journal (mood, reflection, plan for tomorrow).
+- **Calendar heatmap**: greener means more hours. Also shows current and best streaks.
+- **Stats**: daily/weekly bars, category split, focus-by-hour, longest tasks, a 12-month heatmap.
+- Carry over unfinished tasks, "still working?" idle check, optional Pomodoro mode, confetti when you hit your goal.
+- Dark mode, the `Space` shortcut to pause/resume, and JSON export/import.
+
+All data is stored in the browser's `localStorage` (key `grindlog-v1`). There is no account or server. Use **Settings → Export backup** to keep a copy.
+
+## Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Stack: Next.js 16 (App Router), React 19, Tailwind CSS 4, Zustand (persisted store), Motion, lucide-react.
