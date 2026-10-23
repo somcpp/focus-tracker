@@ -44,11 +44,11 @@ function TodayPage() {
             </h1>
             <p className="mt-1 text-[15px] text-muted">Let&apos;s make today productive.</p>
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <p className="text-[15px] font-medium text-ink-2">
               {prettyDate(today, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
             </p>
-            <p className="mt-1 flex items-center justify-end gap-1.5 text-[13px] italic text-muted">
+            <p className="mt-1 flex items-center gap-1.5 text-[13px] italic text-muted sm:justify-end">
               <Sun size={15} className="text-amber-400" /> “{quote}”
             </p>
           </div>
