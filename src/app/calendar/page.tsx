@@ -1,5 +1,6 @@
 "use client";
 
+import { RichText } from "@/components/RichText";
 import { ClientOnly } from "@/components/ClientOnly";
 import Link from "next/link";
 import { ArrowRight, CalendarCheck, Check, Clock3, Flame, Inbox, Trophy } from "lucide-react";
@@ -120,7 +121,9 @@ function DayPreview({ date, now }: { date: string; now: number }) {
               <li key={t.id} className="flex items-center gap-3 py-2.5">
                 {c && <CategoryIcon icon={c.icon} color={c.color} size="sm" variant="solid" />}
                 <div className="min-w-0 flex-1">
-                  <p className={`truncate text-sm font-medium ${t.done ? "" : "text-ink-2"}`}>{t.title}</p>
+                  <p className={`truncate text-sm font-medium ${t.done ? "" : "text-ink-2"}`}>
+                    <RichText text={t.title} size="sm" />
+                  </p>
                   <p className="text-xs" style={{ color: c ? solid(c.color) : undefined }}>
                     {c?.name}
                   </p>

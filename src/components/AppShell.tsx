@@ -1,5 +1,6 @@
 "use client";
 
+import { plainText } from "@/lib/links";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, CalendarDays, Flame, Home, Moon, NotebookPen, Plus, Settings, Sun, Timer } from "lucide-react";
@@ -210,7 +211,7 @@ function RunningCard() {
       <div className="mt-2 flex items-center gap-2.5">
         {category && <CategoryIcon icon={category.icon} color={category.color} size="sm" variant="solid" />}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{task.title}</p>
+          <p className="truncate text-sm font-semibold">{plainText(task.title)}</p>
           <p className="font-mono text-xs text-muted tnum">{formatClock(total)}</p>
         </div>
         <button

@@ -1,5 +1,6 @@
 "use client";
 
+import { plainText } from "@/lib/links";
 import { Check, Pause, Play } from "lucide-react";
 import { useMemo } from "react";
 import { useStore } from "@/lib/store";
@@ -104,13 +105,13 @@ export function FocusTimer({ today }: { today: string }) {
             <CategoryIcon icon={cat.icon} color={cat.color} size="sm" variant="solid" />
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-medium text-muted">{active ? "Working on" : "Resume"}</p>
-              <p className="truncate text-sm font-semibold">{task.title}</p>
+              <p className="truncate text-sm font-semibold">{plainText(task.title)}</p>
             </div>
             {active && runningTask && (
               <button
                 onClick={() => {
                   finishTask(runningTask.id);
-                  toast({ tone: "success", text: `Completed “${runningTask.title}”` });
+                  toast({ tone: "success", text: `Completed “${plainText(runningTask.title)}”` });
                 }}
                 title="Complete task"
                 className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-white hover:bg-emerald-600"

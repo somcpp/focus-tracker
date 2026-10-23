@@ -1,5 +1,6 @@
 "use client";
 
+import { plainText } from "@/lib/links";
 import { useEffect, useState } from "react";
 import { Coffee } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -34,7 +35,7 @@ export function TimerEffects() {
       const total = sessions
         .filter((s) => s.taskId === task.id)
         .reduce((sum, s) => sum + ((s.end ?? now) - s.start), 0);
-      document.title = `▶ ${formatClock(total)} · ${task.title}`;
+      document.title = `▶ ${formatClock(total)} · ${plainText(task.title)}`;
     } else if (breakUntil) {
       document.title = `☕ Break ${formatClock(breakUntil - now)}`;
     } else {

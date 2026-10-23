@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Pause, Play, Plus, Trash2 } from "lucide-react";
+import { Check, Pause, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useStore } from "@/lib/store";
 import { useNow } from "@/lib/hooks";
@@ -10,6 +10,8 @@ import { DIFFICULTY, solid, tint } from "@/lib/colors";
 import { CategoryIcon } from "@/lib/icons";
 import type { Difficulty, Task } from "@/lib/types";
 import { Button, IconButton, Modal } from "./ui";
+import { LinkChip, RichText } from "./RichText";
+import { hasLink, plainText, splitLinks } from "@/lib/links";
 
 /** Global modal for viewing / editing a task: title, notes, difficulty, time sessions */
 export function TaskDetail() {
@@ -38,6 +40,9 @@ function Body({ task, onClose }: { task: Task; onClose: () => void }) {
   const { updateTask, deleteTask, startTask, pauseActive, toggleDone, updateSession, deleteSession, addManualSession } =
     useStore.getState();
   const [manual, setManual] = useState("");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const titleHasLink = hasLink(task.title);
+  const noteLinks = splitLinks(task.notes).flatMap((p) => (p.type === "link" ? [p.link] : []));
   const total = sessions.reduce((sum, s) => sum + ((s.end ?? now) - s.start), 0);
   const color = category ? solid(category.color) : "var(--accent)";
 
@@ -46,11 +51,30 @@ function Body({ task, onClose }: { task: Task; onClose: () => void }) {
       <div className="flex items-start gap-3">
         {category && <CategoryIcon icon={category.icon} color={category.color} />}
         <div className="min-w-0 flex-1">
-          <input
-            value={task.title}
-            onChange={(e) => updateTask(task.id, { title: e.target.value })}
-            className="-mx-1.5 w-full rounded-md bg-transparent px-1.5 py-0.5 text-lg font-semibold hover:bg-card-2 focus:bg-card-2"
-          />
+          {titleHasLink && !editingTitle ? (
+            // Show links as chips; click anywhere else on the title to edit the raw text
+            <div
+              role="button"
+              tabIndex={0}
+              title="Click to edit"
+              onClick={() => setEditingTitle(true)}
+              onKeyDown={(e) => e.key === "Enter" && setEditingTitle(true)}
+              className="-mx-1.5 flex min-h-9 cursor-text flex-wrap items-center gap-1 rounded-md px-1.5 py-0.5 text-lg font-semibold hover:bg-card-2"
+            >
+              <RichText text={task.title} />
+              <Pencil size={13} className="ml-1 text-muted" />
+            </div>
+          ) : (
+            <input
+              value={task.title}
+              autoFocus={editingTitle}
+              onChange={(e) => updateTask(task.id, { title: e.target.value })}
+              onBlur={() => setEditingTitle(false)}
+              onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+              placeholder="Task name or paste a link"
+              className="-mx-1.5 w-full rounded-md bg-transparent px-1.5 py-0.5 text-lg font-semibold hover:bg-card-2 focus:bg-card-2"
+            />
+          )}
           <p className="text-xs text-muted">
             {category?.name} · {prettyDate(task.date, { weekday: "short", month: "short", day: "numeric" })}
           </p>
@@ -116,6 +140,13 @@ function Body({ task, onClose }: { task: Task; onClose: () => void }) {
           placeholder="Approach, edge cases, links, what to revisit…"
           className="field w-full resize-y p-3 text-sm leading-relaxed"
         />
+        {noteLinks.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {noteLinks.map((l, i) => (
+              <LinkChip key={`${l.url}-${i}`} link={l} />
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
@@ -178,7 +209,7 @@ function Body({ task, onClose }: { task: Task; onClose: () => void }) {
           variant="ghost"
           className="!text-red-600 hover:!bg-red-50 dark:hover:!bg-red-950/40"
           onClick={() => {
-            if (confirm(`Delete "${task.title}" and its tracked time?`)) {
+            if (confirm(`Delete "${plainText(task.title)}" and its tracked time?`)) {
               deleteTask(task.id);
               onClose();
             }

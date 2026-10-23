@@ -12,6 +12,8 @@ import { CategoryIcon } from "@/lib/icons";
 import { useUi } from "@/lib/ui-store";
 import type { Category, Session, Task } from "@/lib/types";
 import { CategoryForm } from "./CategoryForm";
+import { LinkChip, RichText } from "./RichText";
+import { splitLinks } from "@/lib/links";
 import { EmptyState, IconButton } from "./ui";
 
 /** Pill tag in a color, like a label */
@@ -241,6 +243,7 @@ function TaskRow({ task, category, ms, running }: { task: Task; category: Catego
   const color = solid(category.color);
   // Timers only run on today's tasks; past days are edited via the task's sessions.
   const canPlay = running || task.date === dayKey();
+  const noteLinks = splitLinks(task.notes).flatMap((p) => (p.type === "link" ? [p.link] : []));
 
   return (
     <motion.div
@@ -272,15 +275,32 @@ function TaskRow({ task, category, ms, running }: { task: Task; category: Catego
         <Check size={13} strokeWidth={3} />
       </button>
 
-      <button onClick={() => openTask(task.id)} className="relative flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 text-left">
-        <span className={`truncate text-[14.5px] font-medium ${task.done ? "text-muted line-through" : ""}`}>{task.title}</span>
+      {/* div, not button: link chips inside must stay clickable */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => openTask(task.id)}
+        onKeyDown={(e) => {
+          if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            openTask(task.id);
+          }
+        }}
+        className="relative flex min-w-0 flex-1 cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-1 text-left"
+      >
+        <span className={`min-w-0 truncate text-[14.5px] font-medium ${task.done ? "text-muted line-through" : ""}`}>
+          <RichText text={task.title} />
+        </span>
         {task.difficulty && <Pill color={DIFFICULTY[task.difficulty].color}>{DIFFICULTY[task.difficulty].label}</Pill>}
+        {noteLinks.slice(0, 2).map((l) => (
+          <LinkChip key={l.url} link={l} size="sm" />
+        ))}
         {task.notes.trim() && (
           <span className="flex items-center gap-1 text-[11px] text-muted">
             <NotebookPen size={11} /> Notes
           </span>
         )}
-      </button>
+      </div>
 
       <span
         className={`relative font-mono text-[13.5px] tnum ${ms === 0 ? "text-muted" : running ? "font-bold" : "text-ink-2"}`}

@@ -1,5 +1,6 @@
 "use client";
 
+import { plainText } from "@/lib/links";
 import { ClientOnly } from "@/components/ClientOnly";
 import Link from "next/link";
 import { BarChart3, CheckCircle2, Clock3, Hourglass, TrendingUp } from "lucide-react";
@@ -271,7 +272,7 @@ function TopTasks({ tasks, sessions, now }: { tasks: Task[]; sessions: Session[]
             <li key={t.id} className="flex items-center gap-2.5 text-sm">
               {c && <CategoryIcon icon={c.icon} color={c.color} size="xs" />}
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{t.title}</p>
+                <p className="truncate font-medium">{plainText(t.title)}</p>
                 <div className="mt-1 h-1 overflow-hidden rounded-full bg-card-2">
                   <div className="h-full rounded-full" style={{ width: `${(ms / maxMs) * 100}%`, background: c ? solid(c.color) : "var(--accent)" }} />
                 </div>

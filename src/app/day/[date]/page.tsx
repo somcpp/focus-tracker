@@ -1,5 +1,7 @@
 "use client";
 
+import { RichText } from "@/components/RichText";
+import { hasLink, plainText, splitLinks } from "@/lib/links";
 import { ClientOnly } from "@/components/ClientOnly";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -52,7 +54,7 @@ function DayPage() {
     for (const c of cats) {
       lines.push(`\n${c.name} (${formatDuration(catTotals.get(c.id) ?? 0)})`);
       for (const t of dayTasks.filter((x) => x.categoryId === c.id)) {
-        lines.push(`  [${t.done ? "x" : " "}] ${t.title} · ${formatDuration(taskMs(t.id, byTask, now))}`);
+        lines.push(`  [${t.done ? "x" : " "}] ${plainText(t.title)}${hasLink(t.title) ? ` (${splitLinks(t.title).flatMap((p) => (p.type === "link" ? [p.link.url] : [])).join(", ")})` : ""} · ${formatDuration(taskMs(t.id, byTask, now))}`);
       }
     }
     navigator.clipboard.writeText(lines.join("\n"));
@@ -226,7 +228,13 @@ function SummaryCategory({
               const ms = taskMs(t.id, byTask, now);
               return (
                 <li key={t.id} className="border-b border-line last:border-b-0">
-                  <button onClick={() => openTask(t.id)} className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-subtle">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openTask(t.id)}
+                    onKeyDown={(e) => e.target === e.currentTarget && e.key === "Enter" && openTask(t.id)}
+                    className="flex w-full cursor-pointer items-start gap-3 px-4 py-2.5 text-left hover:bg-subtle"
+                  >
                     <span
                       className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
                         t.done ? "border-emerald-500 bg-emerald-500 text-white" : "border-line-strong"
@@ -236,17 +244,22 @@ function SummaryCategory({
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-medium">{t.title}</p>
+                        <p className="truncate text-sm font-medium">
+                          <RichText text={t.title} size="sm" />
+                        </p>
                         {t.difficulty && <Badge color={DIFFICULTY[t.difficulty].color}>{DIFFICULTY[t.difficulty].label}</Badge>}
                       </div>
                       {t.notes.trim() && (
                         <p className="mt-0.5 line-clamp-2 flex gap-1.5 text-xs text-muted">
-                          <NotebookPen size={12} className="mt-px shrink-0" /> {t.notes}
+                          <NotebookPen size={12} className="mt-px shrink-0" />
+                          <span>
+                            <RichText text={t.notes} size="sm" />
+                          </span>
                         </p>
                       )}
                     </div>
                     <span className="font-mono text-sm text-ink-2 tnum">{ms ? formatDuration(ms) : "—"}</span>
-                  </button>
+                  </div>
                 </li>
               );
             })}
