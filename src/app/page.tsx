@@ -2,12 +2,14 @@
 
 import { ClientOnly } from "@/components/ClientOnly";
 import Link from "next/link";
-import { ChevronDown, CheckCircle2, Clock3, History, Layers, NotebookPen, Sun, Sunrise, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ChevronDown, CheckCircle2, Clock3, History, Layers, NotebookPen, Sun, Sunrise, Sunset, Moon, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
+import { useAuth } from "@/lib/auth-client";
 import { useActiveSession, useNow, useToday } from "@/lib/hooks";
 import { categoryTotals, dayTotals } from "@/lib/selectors";
-import { addDays, formatDuration, greeting, prettyDate } from "@/lib/time";
+import { addDays, formatDuration, prettyDate } from "@/lib/time";
+import { getTimeSlotData } from "@/lib/quotes";
 import { DayBoard } from "@/components/DayBoard";
 import { DayBreakdown } from "@/components/DayBreakdown";
 import { FocusTimer } from "@/components/FocusTimer";
@@ -17,21 +19,70 @@ import { QuickAdd } from "@/components/QuickAdd";
 import { StatCard } from "@/components/StatCard";
 import { Button, IconButton, SectionTitle, toast } from "@/components/ui";
 
-const QUOTES = [
-  "Progress over perfection.",
-  "Small steps every day.",
-  "Consistency beats intensity.",
-  "Focus on the next hour, not the whole day.",
-  "Done is better than perfect.",
-  "One problem at a time.",
-  "Show up, even when it's hard.",
-];
+function TimeSlotIcon({ iconName, className }: { iconName: string; className?: string }) {
+  switch (iconName) {
+    case "Sunrise":
+      return <Sunrise size={15} className={className} />;
+    case "Sunset":
+      return <Sunset size={15} className={className} />;
+    case "Moon":
+      return <Moon size={15} className={className} />;
+    case "Sparkles":
+      return <Sparkles size={15} className={className} />;
+    default:
+      return <Sun size={15} className={className} />;
+  }
+}
 
 function TodayPage() {
   const today = useToday();
-  const name = useStore((s) => s.settings.name);
-  const quote = QUOTES[new Date().getDate() % QUOTES.length];
+  const settingsName = useStore((s) => s.settings.name);
+  const authUser = useAuth((s) => s.user);
+  const name = settingsName || authUser?.name?.split(" ")[0] || "";
   const count = useStore((s) => s.tasks.filter((t) => t.date === today).length);
+
+  // Dynamic time-aware welcome, subtitles, and quotes
+  const [now, setNow] = useState(() => new Date());
+  const [quoteOffset, setQuoteOffset] = useState(() => Math.floor(Math.random() * 20));
+  const [subtitleOffset, setSubtitleOffset] = useState(() => Math.floor(Math.random() * 20));
+  const [greetingOffset, setGreetingOffset] = useState(() => Math.floor(Math.random() * 10));
+  const [isFading, setIsFading] = useState(false);
+
+  const timeData = useMemo(() => getTimeSlotData(now), [now]);
+
+  // Update clock every minute so time transitions seamlessly
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Periodically cycle quote and subtitle with smooth fade transition
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsFading(true);
+      setTimeout(() => {
+        setQuoteOffset((prev) => prev + 1);
+        setSubtitleOffset((prev) => prev + 1);
+        setIsFading(false);
+      }, 300);
+    }, 22000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleShuffleQuote = () => {
+    setIsFading(true);
+    setTimeout(() => {
+      setQuoteOffset((prev) => prev + 1);
+      setSubtitleOffset((prev) => prev + 1);
+      setGreetingOffset((prev) => prev + 1);
+      setIsFading(false);
+    }, 180);
+  };
+
+  const currentGreeting = timeData.greetings[greetingOffset % timeData.greetings.length];
+  const currentSubtitle = timeData.subtitles[subtitleOffset % timeData.subtitles.length];
+  const currentQuote = timeData.quotes[quoteOffset % timeData.quotes.length];
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -40,19 +91,41 @@ function TodayPage() {
           <div className="min-w-0 flex-1">
             <h1 className="text-[28px] font-bold leading-tight tracking-tight md:text-[32px]">
               <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-300 dark:to-purple-300">
-                {greeting()}
+                {currentGreeting}
                 {name ? `, ${name}` : ""}!
               </span>
             </h1>
-            <p className="mt-1 text-[15px] text-muted">Let&apos;s make today productive.</p>
+            <p
+              className={`mt-1 text-[15px] text-muted transition-opacity duration-300 ${
+                isFading ? "opacity-30" : "opacity-100"
+              }`}
+            >
+              {currentSubtitle}
+            </p>
           </div>
           <div className="shrink-0 sm:text-right sm:max-w-xs md:max-w-sm">
             <p className="text-[15px] font-medium text-ink-2">
               {prettyDate(today, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
             </p>
-            <p className="mt-1 flex items-center gap-1.5 text-[13px] italic text-muted sm:justify-end">
-              <Sun size={15} className="shrink-0 text-amber-400" /> “{quote}”
-            </p>
+            <div className="mt-1 flex items-center gap-1.5 text-[13px] italic text-muted sm:justify-end">
+              <TimeSlotIcon iconName={timeData.iconName} className={`shrink-0 ${timeData.iconColor}`} />
+              <span
+                className={`transition-opacity duration-300 ${
+                  isFading ? "opacity-0" : "opacity-100"
+                } truncate sm:max-w-[280px] md:max-w-[340px]`}
+                title={currentQuote}
+              >
+                “{currentQuote}”
+              </span>
+              <button
+                type="button"
+                onClick={handleShuffleQuote}
+                title="Shuffle inspiring quote"
+                className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-muted/60 hover:bg-card-2 hover:text-ink transition active:scale-90"
+              >
+                <Sparkles size={12} className="transition hover:rotate-12" />
+              </button>
+            </div>
           </div>
         </header>
 
