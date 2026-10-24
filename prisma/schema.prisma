@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Better Auth Core Models
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  emailVerified Boolean        @default(false)
+  image         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  sessions      Session[]
+  accounts      Account[]
+  categories    Category[]
+  tasks         Task[]
+  focusSessions FocusSession[]
+  journals      Journal[]
+  settings      UserSettings?
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+// -----------------------------------------------------------------------------
+// Focus Tracker Domain Models
+// -----------------------------------------------------------------------------
+
+model Category {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String   @default("layers")
+  color     String   @default("blue")
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  tasks     Task[]
+
+  @@index([userId])
+  @@map("categories")
+}
+
+model Task {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  date       String         // YYYY-MM-DD
+  title      String
+  notes      String         @default("")
+  done       Boolean        @default(false)
+  difficulty String?        // easy | medium | hard
+  carriedTo  String?
+  createdAt  DateTime       @default(now())
+  sessions   FocusSession[]
+
+  @@index([userId, date])
+  @@map("tasks")
+}
+
+model FocusSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  start     BigInt   // Unix timestamp ms
+  end       BigInt?  // Unix timestamp ms, null if currently active
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([taskId])
+  @@map("focus_sessions")
+}
+
+model Journal {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       String   // YYYY-MM-DD
+  mood       Int?     // 1 to 5
+  wins       String   @default("")
+  challenges String   @default("")
+  learnings  String   @default("")
+  notes      String   @default("")
+  plan       Json     @default("[]") // Array of { id, text, done, taskId }
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@map("journals")
+}
+
+model UserSettings {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String   @default("")
+  theme            String   @default("system")
+  dailyGoalMinutes Int      @default(360)
+  streakMinMinutes Int      @default(15)
+  idleLimitMinutes Int      @default(15)
+  pomodoroFocus    Int      @default(25)
+  pomodoroBreak    Int      @default(5)
+  pomodoroEnabled  Boolean  @default(false)
+  soundVolume      Float    @default(0.7)
+  soundMuted       Boolean  @default(false)
+  showQuote        Boolean  @default(true)
+  showHeatmap      Boolean  @default(true)
+  showStreaks      Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+
+  @@map("user_settings")
+}
