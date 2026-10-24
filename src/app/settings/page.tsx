@@ -63,7 +63,7 @@ function SettingsPage() {
             <input
               value={settings.name}
               onChange={(e) => updateSettings({ name: e.target.value })}
-              placeholder="Your name"
+              placeholder={user?.name || "Your name"}
               className="field h-9 w-52 px-3 text-sm"
             />
           </Field>
