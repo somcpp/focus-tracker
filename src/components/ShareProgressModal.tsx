@@ -13,6 +13,7 @@ import {
   Copy,
   Download,
   Flame,
+  Globe,
   Layers,
   Share2,
   Sparkles,
@@ -25,11 +26,53 @@ import { useUi, type ShareScope } from "@/lib/ui-store";
 import { useActiveSession, useNow, useToday } from "@/lib/hooks";
 import { dayTotals, streaks, sessionsByTask, taskMs } from "@/lib/selectors";
 import { solid } from "@/lib/colors";
+import type { ColorKey } from "@/lib/types";
 import { addDays, formatDuration, prettyDate } from "@/lib/time";
-import { plainText } from "@/lib/links";
+import { plainText, splitLinks } from "@/lib/links";
 import { getMood } from "@/lib/moods";
 import { toast } from "./ui";
+import { LeetCodeIcon } from "./RichText";
 import { toBlob, toPng } from "html-to-image";
+
+function ShareCardTaskTitle({ title }: { title: string }) {
+  const parts = splitLinks(title);
+  if (parts.length === 1 && parts[0].type === "text") {
+    return <span className="truncate">{parts[0].value}</span>;
+  }
+  return (
+    <span className="truncate flex-1 inline-flex items-center gap-1.5 min-w-0">
+      {parts.map((p, i) => {
+        if (p.type === "text") {
+          return (
+            <span key={i} className="truncate">
+              {p.value}
+            </span>
+          );
+        }
+        if (p.link.site === "LeetCode") {
+          return (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1 shrink-0 font-medium text-white/95 bg-white/10 px-1.5 py-0.5 rounded text-[11px]"
+            >
+              <LeetCodeIcon size={11} />
+              <span className="truncate max-w-[170px]">{p.link.title ?? "LeetCode"}</span>
+            </span>
+          );
+        }
+        return (
+          <span
+            key={i}
+            className="inline-flex items-center gap-1 shrink-0 font-medium text-white/80 bg-white/10 px-1.5 py-0.5 rounded text-[11px]"
+          >
+            <Globe size={10} className="text-white/60" />
+            <span className="truncate max-w-[140px]">{p.link.title ?? p.link.site}</span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 type CardTheme = "midnight" | "sunset" | "cyber" | "obsidian";
 
@@ -166,6 +209,45 @@ export function ShareProgressModal() {
   const journal = journals[currentDate];
   const mood = journal ? getMood(journal.mood) : null;
   const win = journal?.wins?.trim();
+
+  // Completed tasks grouped by category for daily changelog showcase
+  const completedByCategory = useMemo(() => {
+    const groups: {
+      category: { id: string; name: string; color: ColorKey };
+      totalMs: number;
+      tasks: { task: (typeof dayTasks)[number]; ms: number }[];
+    }[] = [];
+
+    const catMap = new Map<
+      string,
+      {
+        category: { id: string; name: string; color: ColorKey };
+        totalMs: number;
+        tasks: { task: (typeof dayTasks)[number]; ms: number }[];
+      }
+    >();
+
+    for (const t of completedDayTasks) {
+      const cat = categories.find((c) => c.id === t.categoryId) || {
+        id: t.categoryId,
+        name: "General",
+        color: "blue" as ColorKey,
+      };
+      const ms = taskMs(t.id, byTask, now);
+      let group = catMap.get(cat.id);
+      if (!group) {
+        group = { category: { id: cat.id, name: cat.name, color: (cat.color ?? "blue") as ColorKey }, totalMs: 0, tasks: [] };
+        catMap.set(cat.id, group);
+        groups.push(group);
+      }
+      group.totalMs += ms;
+      group.tasks.push({ task: t, ms });
+    }
+
+    // Sort categories by total focused time descending, or task count
+    groups.sort((a, b) => b.totalMs - a.totalMs || b.tasks.length - a.tasks.length);
+    return groups;
+  }, [completedDayTasks, categories, byTask, now]);
 
   // ---------------- MONTHLY CALCULATIONS ----------------
   const currentMonthDate = useMemo(() => {
@@ -310,18 +392,32 @@ export function ShareProgressModal() {
 
 Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
       } else {
+        const tasksText =
+          completedByCategory.length > 0
+            ? "\n\nTasks Completed:\n" +
+              completedByCategory
+                .map(
+                  (g) =>
+                    `📁 ${g.category.name}${g.totalMs > 0 ? ` (${formatDuration(g.totalMs)})` : ""}:\n` +
+                    g.tasks
+                      .map((t) => `  ✓ ${plainText(t.task.title)}${t.ms > 0 ? ` · ${formatDuration(t.ms)}` : ""}`)
+                      .join("\n"),
+                )
+                .join("\n\n")
+            : "";
+
         const breakdownText =
           dayCategoryBreakdown.length > 0
-            ? "\n\nBreakdown:\n" +
+            ? "\n\nCategory Distribution:\n" +
               dayCategoryBreakdown.map((c) => `• ${c.name}: ${formatDuration(c.durationMs)} (${c.percent}%)`).join("\n")
             : "";
 
-        const winText = win ? `\n🏆 Daily Win: ${win}` : "";
+        const winText = win ? `\n\n🏆 Daily Win: ${win}` : "";
 
         text = `🎯 Focus Tracker Report · ${prettyDate(currentDate)}
-⏱️ ${formatDuration(dayMs)} Focused (${goalPercent}% of daily goal)
-✅ ${completedDayTasks.length}/${dayTasks.length} Tasks Smashed
-🔥 ${streak.current}-Day Streak${winText}${breakdownText}
+⏱️ ${formatDuration(dayMs)} Total Focus Time (${goalPercent}% of daily goal)
+✅ ${completedDayTasks.length}/${dayTasks.length} Tasks Done
+🔥 ${streak.current}-Day Streak${tasksText}${breakdownText}${winText}
 
 Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
       }
@@ -694,44 +790,46 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
                     </div>
                   </div>
                 ) : (
-                  /* DAILY HERO GRID */
-                  <div className="relative z-10 my-5 grid grid-cols-2 gap-3">
-                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+                  /* DAILY HERO STATS STRIP */
+                  <div className="relative z-10 my-4 grid grid-cols-2 gap-3">
+                    {/* Total Focus Time */}
+                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
-                          Focus Time
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                          Total Focus Time
                         </span>
-                        <Clock size={15} style={{ color: themeConfig.accent }} />
+                        <Clock size={14} style={{ color: themeConfig.accent }} />
                       </div>
-                      <p className="mt-2 text-3xl font-extrabold tracking-tight text-white tnum">
+                      <p className="mt-1.5 text-2xl sm:text-3xl font-extrabold tracking-tight text-white tnum">
                         {formatDuration(dayMs)}
                       </p>
-                      <div className="mt-2 flex items-center gap-1.5 text-xs text-white/75">
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-white/75">
                         <span
-                          className="h-2 w-2 rounded-full"
+                          className="h-1.5 w-1.5 rounded-full"
                           style={{ background: goalPercent >= 100 ? "#10b981" : themeConfig.accent }}
                         />
                         <span>{goalPercent}% of daily goal</span>
                       </div>
                     </div>
 
-                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+                    {/* Total Tasks Completed */}
+                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
-                          Tasks Smashed
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                          Tasks Done
                         </span>
-                        <CheckCircle2 size={15} className="text-emerald-400" />
+                        <CheckCircle2 size={14} className="text-emerald-400" />
                       </div>
-                      <p className="mt-2 text-3xl font-extrabold tracking-tight text-white tnum">
+                      <p className="mt-1.5 text-2xl sm:text-3xl font-extrabold tracking-tight text-white tnum">
                         {completedDayTasks.length}
-                        <span className="text-lg font-medium text-white/50">/{dayTasks.length}</span>
+                        <span className="text-base font-medium text-white/50">
+                          {dayTasks.length > 0 ? ` / ${dayTasks.length}` : " done"}
+                        </span>
                       </p>
-                      <div className="mt-2 flex items-center gap-1.5 text-xs text-white/75">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-white/75">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                         <span>
-                          {dayTasks.length > 0
-                            ? `${Math.round((completedDayTasks.length / dayTasks.length) * 100)}% completion`
-                            : "0 tasks created"}
+                          {completedByCategory.length} {completedByCategory.length === 1 ? "category" : "categories"}
                         </span>
                       </div>
                     </div>
@@ -740,11 +838,11 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
 
                 {/* CATEGORY BREAKDOWN MULTI-BAR */}
                 {((scope === "month" ? monthCategoryBreakdown : dayCategoryBreakdown).length > 0) && (
-                  <div className="relative z-10 my-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-sm">
-                    <div className="mb-2.5 flex items-center justify-between text-xs font-semibold text-white/70">
+                  <div className="relative z-10 my-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 backdrop-blur-sm">
+                    <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-white/70">
                       <span className="flex items-center gap-1.5">
-                        <Layers size={13} className="text-white/60" />
-                        {scope === "month" ? "Monthly Breakdown" : "Focus Breakdown"}
+                        <Layers size={12} className="text-white/60" />
+                        {scope === "month" ? "Monthly Breakdown" : "Focus Distribution"}
                       </span>
                       <span className="tnum font-bold text-white/90">
                         {(scope === "month" ? monthCategoryBreakdown : dayCategoryBreakdown).length} Categories
@@ -752,7 +850,7 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="flex h-3 w-full overflow-hidden rounded-full bg-white/10">
+                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-white/10">
                       {(scope === "month" ? monthCategoryBreakdown : dayCategoryBreakdown).map((c) => (
                         <div
                           key={c.id}
@@ -767,17 +865,17 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
                     </div>
 
                     {/* Category Legend Pills */}
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {(scope === "month" ? monthCategoryBreakdown : dayCategoryBreakdown).slice(0, 4).map((c) => (
                         <span
                           key={c.id}
-                          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-white/90"
+                          className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/90"
                         >
                           <span
-                            className="h-2 w-2 rounded-full"
+                            className="h-1.5 w-1.5 rounded-full"
                             style={{ background: solid(c.color) }}
                           />
-                          <span className="truncate max-w-[120px]">{c.name}</span>
+                          <span className="truncate max-w-[110px]">{c.name}</span>
                           <span className="text-white/60 tnum">{formatDuration(c.durationMs)}</span>
                         </span>
                       ))}
@@ -785,30 +883,80 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
                   </div>
                 )}
 
-                {/* DAILY EXCLUSIVE: Key Completed Tasks & Win */}
+                {/* DAILY EXCLUSIVE: All Completed Tasks Grouped by Category */}
                 {scope === "day" && (
-                  <>
-                    {completedDayTasks.length > 0 && (
-                      <div className="relative z-10 my-3">
-                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-white/50">
-                          Top Accomplishments
-                        </p>
-                        <ul className="flex flex-col gap-1.5">
-                          {completedDayTasks.slice(0, 3).map((t) => (
-                            <li
-                              key={t.id}
-                              className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/90 border border-white/5"
-                            >
-                              <Check size={13} className="shrink-0 text-emerald-400" strokeWidth={3} />
-                              <span className="truncate flex-1">{plainText(t.title)}</span>
-                            </li>
-                          ))}
-                        </ul>
+                  <div className="relative z-10 my-3 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between">
+                      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-white/60">
+                        <CheckCircle2 size={13} className="text-emerald-400" />
+                        Completed Tasks ({completedDayTasks.length})
+                      </p>
+                      {completedByCategory.length > 0 && (
+                        <span className="text-[10px] font-semibold text-white/50">
+                          Grouped by category
+                        </span>
+                      )}
+                    </div>
+
+                    {completedByCategory.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        {completedByCategory.map((group) => (
+                          <div
+                            key={group.category.id}
+                            className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm"
+                          >
+                            {/* Category Subheader */}
+                            <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.02] px-3 py-1.5 text-xs">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="h-2 w-2 rounded-full shrink-0"
+                                  style={{ background: solid(group.category.color) }}
+                                />
+                                <span className="font-bold text-white tracking-tight">{group.category.name}</span>
+                                <span className="rounded-full bg-white/10 px-1.5 py-0.2 text-[10px] font-semibold text-white/70">
+                                  {group.tasks.length} {group.tasks.length === 1 ? "task" : "tasks"}
+                                </span>
+                              </div>
+                              {group.totalMs > 0 && (
+                                <span className="text-[11px] font-medium text-white/60 tnum">
+                                  {formatDuration(group.totalMs)}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Task Items */}
+                            <ul className="divide-y divide-white/5">
+                              {group.tasks.map(({ task, ms }) => (
+                                <li
+                                  key={task.id}
+                                  className="flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium text-white/90"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-500/20 text-emerald-400">
+                                      <Check size={10} strokeWidth={3} />
+                                    </span>
+                                    <ShareCardTaskTitle title={task.title} />
+                                  </div>
+                                  {ms > 0 && (
+                                    <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-mono text-white/60 tnum">
+                                      {formatDuration(ms)}
+                                    </span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-4 text-center">
+                        <p className="text-xs font-medium text-white/70">No tasks completed yet on this day</p>
+                        <p className="mt-1 text-[11px] text-white/40">Finish a task to see it listed here!</p>
                       </div>
                     )}
 
                     {(win || mood) && (
-                      <div className="relative z-10 my-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-xs text-white/90 flex items-start gap-2.5">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-xs text-white/90 flex items-start gap-2.5">
                         <Trophy size={16} className="shrink-0 text-amber-400 mt-0.5" />
                         <div className="min-w-0 flex-1">
                           {mood && (
@@ -820,7 +968,7 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
                         </div>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
 
                 {/* Footer Watermark */}
