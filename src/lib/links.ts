@@ -125,12 +125,24 @@ export function prettyLink(raw: string): PrettyLink | null {
   }
   const domain = u.hostname.replace(/^www\.|^m\./, "");
   const parts = u.pathname.split("/").filter(Boolean);
+  const site = siteName(domain);
+
+  const directFavicons: string[] = [];
+  if (domain.endsWith("leetcode.com") || domain.endsWith("leetcode.cn")) {
+    directFavicons.push(
+      "https://assets.leetcode.com/static_assets/public/icons/favicon-32x32.png",
+      "https://leetcode.com/favicon.ico",
+      "https://assets.leetcode.com/static_assets/public/icons/favicon.ico",
+    );
+  }
+
   return {
     url: u.href,
     domain,
-    site: siteName(domain),
+    site,
     title: pageTitle(domain, parts, u),
     favicons: [
+      ...directFavicons,
       `https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`,
       `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`,
     ],
