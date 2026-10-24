@@ -57,11 +57,17 @@ export function clearLocalStoreOnLogout() {
  */
 export async function syncWithCloud(): Promise<void> {
   if (isSyncInProgress) return;
+  const auth = useAuth.getState();
+  if (!auth.user) {
+    // Cloud sync only runs when an account is actively signed in.
+    useSyncStatus.getState().setSyncing(false);
+    return;
+  }
+
   try {
     isSyncInProgress = true;
     useSyncStatus.getState().setSyncing(true);
 
-    const auth = useAuth.getState();
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -90,16 +96,20 @@ export async function syncWithCloud(): Promise<void> {
       remoteSettings = data.settings || null;
     }
 
-    const currentUserId = auth.user?.id || null;
+    const currentUserId = auth.user.id;
     const lastUser = getLastSyncedUser();
 
-    // Account switch protection:
-    // If user switched accounts (e.g. was logged in as user A, now logged in as user B),
-    // NEVER merge user A's local tasks into user B! Overwrite local store cleanly with user B's cloud data.
-    const isAccountSwitch = currentUserId && lastUser && currentUserId !== lastUser;
+    // Clean cloud hydration condition:
+    // If user switched accounts (lastUser !== currentUserId), OR
+    // user just signed in and already has cloud data,
+    // cleanly populate local store from cloud without merging leftover seed/guest data.
+    const isCleanHydration =
+      (lastUser && currentUserId !== lastUser) ||
+      (!lastUser && (remoteCategories.length > 0 || remoteTasks.length > 0));
+
     setLastSyncedUser(currentUserId);
 
-    if (isAccountSwitch) {
+    if (isCleanHydration) {
       useStore.setState({
         categories: remoteCategories,
         tasks: remoteTasks,
@@ -195,15 +205,20 @@ export async function syncWithCloud(): Promise<void> {
  * Never blocks the UI or main thread.
  */
 export function queueDatabaseSync(delayMs = 1200) {
+  const auth = useAuth.getState();
+  if (!auth.user) return; // Do not push to cloud if unauthenticated
+
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(async () => {
     if (isSyncInProgress) return;
+    const currentAuth = useAuth.getState();
+    if (!currentAuth.user) return;
+
     try {
       isSyncInProgress = true;
       useSyncStatus.getState().setSyncing(true);
 
       const state = useStore.getState();
-      const auth = useAuth.getState();
 
       const payload = {
         categories: state.categories,
@@ -217,8 +232,8 @@ export function queueDatabaseSync(delayMs = 1200) {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-      if (auth.token) {
-        headers["Authorization"] = `Bearer ${auth.token}`;
+      if (currentAuth.token) {
+        headers["Authorization"] = `Bearer ${currentAuth.token}`;
       }
 
       await fetch("/api/sync", {
@@ -247,8 +262,10 @@ export async function pushDatabaseSyncNow() {
 }
 
 /**
- * On first mount, trigger a full bidirectional sync with Neon Postgres.
+ * On first mount, trigger a full bidirectional sync with Neon Postgres if logged in.
  */
 export async function initializeDatabaseSync() {
+  const auth = useAuth.getState();
+  if (!auth.user) return;
   return syncWithCloud();
 }

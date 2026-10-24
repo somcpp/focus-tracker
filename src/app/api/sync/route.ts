@@ -7,16 +7,19 @@ export async function GET(req: Request) {
   try {
     const token = extractAuthToken(req);
     const session = token ? await verifyNeonAuthToken(token) : null;
-    const userId = session?.userId ?? "default_local_user";
+    if (!session?.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.userId;
 
-    // Ensure default user exists if using local/anonymous mode
+    // Ensure user exists
     await prisma.user.upsert({
       where: { id: userId },
       update: {},
       create: {
         id: userId,
-        name: session?.name || "Local User",
-        email: session?.email || `${userId}@local.host`,
+        name: session.name || "Focus User",
+        email: session.email || `${userId}@local.host`,
       },
     });
 
@@ -50,7 +53,10 @@ export async function POST(req: Request) {
   try {
     const token = extractAuthToken(req);
     const session = token ? await verifyNeonAuthToken(token) : null;
-    const userId = session?.userId ?? "default_local_user";
+    if (!session?.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.userId;
 
     const body = await req.json();
     const { categories, tasks, sessions, journals, settings, deletedCategoryIds } = body;
@@ -61,8 +67,8 @@ export async function POST(req: Request) {
       update: {},
       create: {
         id: userId,
-        name: session?.name || "Local User",
-        email: session?.email || `${userId}@local.host`,
+        name: session.name || "Focus User",
+        email: session.email || `${userId}@local.host`,
       },
     });
 
