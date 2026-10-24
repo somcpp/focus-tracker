@@ -1,19 +1,44 @@
+import { create } from "zustand";
 import { useStore } from "./store";
+import { useAuth } from "./auth-client";
+
+interface SyncStatusState {
+  isSyncing: boolean;
+  lastSyncedAt: Date | null;
+  error: string | null;
+  setSyncing: (syncing: boolean, error?: string | null) => void;
+}
+
+export const useSyncStatus = create<SyncStatusState>((set) => ({
+  isSyncing: false,
+  lastSyncedAt: null,
+  error: null,
+  setSyncing: (syncing, error = null) =>
+    set((s) => ({
+      isSyncing: syncing,
+      error,
+      lastSyncedAt: syncing ? s.lastSyncedAt : new Date(),
+    })),
+}));
 
 let syncTimeout: NodeJS.Timeout | null = null;
-let isSyncing = false;
+let isSyncInProgress = false;
 
 /**
  * Triggers a debounced background sync of the local store to Neon Postgres.
+ * Always syncs ALL data (categories, tasks, sessions, journals, settings) from localStorage.
  * Never blocks the UI or main thread.
  */
-export function queueDatabaseSync(delayMs = 1500) {
+export function queueDatabaseSync(delayMs = 1200) {
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(async () => {
-    if (isSyncing) return;
+    if (isSyncInProgress) return;
     try {
-      isSyncing = true;
+      isSyncInProgress = true;
+      useSyncStatus.getState().setSyncing(true);
+
       const state = useStore.getState();
+      const auth = useAuth.getState();
 
       const payload = {
         categories: state.categories,
@@ -23,30 +48,64 @@ export function queueDatabaseSync(delayMs = 1500) {
         settings: state.settings,
       };
 
-      await fetch("/api/sync", {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (auth.token) {
+        headers["Authorization"] = `Bearer ${auth.token}`;
+      }
+
+      const res = await fetch("/api/sync", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: "include",
         body: JSON.stringify(payload),
       });
+
+      if (!res.ok) {
+        console.warn("[CloudSync] Sync returned non-200 status:", res.status);
+      }
+      useSyncStatus.getState().setSyncing(false);
     } catch (err) {
       // Offline or network error: fail silently and keep local-first state intact
       console.warn("[CloudSync] Background sync to Neon failed (retaining local state):", err);
+      useSyncStatus.getState().setSyncing(false, "Sync failed");
     } finally {
-      isSyncing = false;
+      isSyncInProgress = false;
     }
   }, delayMs);
 }
 
 /**
- * On first mount, if localStorage is completely fresh/empty, restore from Neon Postgres.
+ * Immediately pushes current localStorage data to Neon without waiting for debounce.
+ */
+export async function pushDatabaseSyncNow() {
+  if (syncTimeout) clearTimeout(syncTimeout);
+  return queueDatabaseSync(0);
+}
+
+/**
+ * On first mount:
+ * - If localStorage is completely fresh/empty, restore from Neon Postgres.
+ * - If localStorage already contains data, push all existing categories, tasks,
+ *   sessions, journals to Neon so cloud is fully up to date.
  */
 export async function initializeDatabaseSync() {
   try {
     const local = useStore.getState();
+    const auth = useAuth.getState();
     const isLocalEmpty = local.tasks.length === 0 && local.sessions.length === 0;
 
+    const headers: Record<string, string> = {};
+    if (auth.token) {
+      headers["Authorization"] = `Bearer ${auth.token}`;
+    }
+
     if (isLocalEmpty) {
-      const res = await fetch("/api/sync");
+      const res = await fetch("/api/sync", {
+        headers,
+        credentials: "include",
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.categories?.length > 0 || data.tasks?.length > 0) {
@@ -62,8 +121,8 @@ export async function initializeDatabaseSync() {
       }
     }
 
-    // Otherwise push existing local data to ensure Neon is up-to-date
-    queueDatabaseSync(800);
+    // Push all existing local data immediately to ensure Neon is completely synchronized
+    queueDatabaseSync(300);
   } catch (err) {
     console.warn("[CloudSync] Initialization failed:", err);
   }

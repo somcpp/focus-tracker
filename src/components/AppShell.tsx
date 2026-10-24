@@ -17,7 +17,7 @@ import { TaskDetail } from "./TaskDetail";
 import { CategoryForm } from "./CategoryForm";
 import { AuthModal } from "./AuthModal";
 import { requestPersistentStorage } from "@/lib/persist";
-import { initializeDatabaseSync, queueDatabaseSync } from "@/lib/sync";
+import { initializeDatabaseSync, queueDatabaseSync, useSyncStatus } from "@/lib/sync";
 import { useAuth } from "@/lib/auth-client";
 
 const NAV = [
@@ -61,14 +61,23 @@ export function AppShell({ children }: { children: ReactNode }) {
     useAuth.getState().checkSession();
   }, [mounted]);
 
-  // Sync with Neon Postgres: hydrate if empty, debounced push on changes
+  // Sync with Neon Postgres: hydrate if empty, debounced push on changes, and sync on login
   useEffect(() => {
     if (!mounted) return;
     initializeDatabaseSync();
-    const unsub = useStore.subscribe(() => {
+    const unsubStore = useStore.subscribe(() => {
       queueDatabaseSync(2000);
     });
-    return unsub;
+    const unsubAuth = useAuth.subscribe((state, prev) => {
+      if (state.user && state.user.id !== prev?.user?.id) {
+        // Immediately sync all local storage data to the user's cloud database on sign in
+        queueDatabaseSync(100);
+      }
+    });
+    return () => {
+      unsubStore();
+      unsubAuth();
+    };
   }, [mounted]);
 
   // Pages gate themselves with <ClientOnly>; the chrome depends on stored data too.
@@ -227,6 +236,7 @@ function Sidebar() {
 function AuthSidebarButton() {
   const user = useAuth((s) => s.user);
   const setModalOpen = useAuth((s) => s.setModalOpen);
+  const isSyncing = useSyncStatus((s) => s.isSyncing);
 
   if (user) {
     return (
@@ -243,8 +253,18 @@ function AuthSidebarButton() {
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-bold text-ink">{user.name || "Focus User"}</p>
-          <p className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Cloud synced
+          <p className="flex items-center gap-1.5 text-[11px] font-medium">
+            {isSyncing ? (
+              <>
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                <span className="text-amber-500">Syncing...</span>
+              </>
+            ) : (
+              <>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+                <span className="text-emerald-600 dark:text-emerald-400">Cloud synced</span>
+              </>
+            )}
           </p>
         </div>
       </button>

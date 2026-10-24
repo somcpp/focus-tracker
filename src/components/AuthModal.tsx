@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-client";
 import { Button, Modal } from "./ui";
-import { Cloud, LogOut } from "lucide-react";
+import { Cloud, LogOut, RefreshCw } from "lucide-react";
+import { pushDatabaseSyncNow } from "@/lib/sync";
 
 export function AuthModal() {
   const { user, modalOpen, modalMode, setModalOpen, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut } =
@@ -14,6 +15,7 @@ export function AuthModal() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncingNow, setSyncingNow] = useState(false);
 
   const isSignUp = modalMode === "signup";
 
@@ -76,19 +78,34 @@ export function AuthModal() {
             </div>
 
             <div className="rounded-xl border border-line bg-card-2 p-3.5 text-xs text-muted">
-              Your tasks, focus sessions, categories, and journals are automatically persisted to your Neon Cloud database.
+              All your existing local data (categories, tasks, timer sessions, and journals) is synchronized with Neon Cloud database.
             </div>
 
-            <Button
-              variant="secondary"
-              onClick={async () => {
-                await signOut();
-                setModalOpen(false);
-              }}
-              className="w-full text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-            >
-              <LogOut size={15} /> Sign Out
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  setSyncingNow(true);
+                  await pushDatabaseSyncNow();
+                  setTimeout(() => setSyncingNow(false), 600);
+                }}
+                className="flex-1"
+                disabled={syncingNow}
+              >
+                <RefreshCw size={14} className={syncingNow ? "animate-spin" : ""} />
+                {syncingNow ? "Syncing..." : "Sync Now"}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  await signOut();
+                  setModalOpen(false);
+                }}
+                className="text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+              >
+                <LogOut size={15} /> Sign Out
+              </Button>
+            </div>
           </div>
         ) : (
           /* Sign In / Sign Up Form */

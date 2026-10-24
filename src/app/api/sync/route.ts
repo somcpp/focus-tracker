@@ -74,6 +74,7 @@ export async function POST(req: Request) {
           await tx.category.upsert({
             where: { id: c.id },
             update: {
+              userId,
               name: c.name,
               icon: c.icon,
               color: c.color,
@@ -97,6 +98,7 @@ export async function POST(req: Request) {
           await tx.task.upsert({
             where: { id: t.id },
             update: {
+              userId,
               categoryId: t.categoryId,
               date: t.date,
               title: t.title,
@@ -126,6 +128,7 @@ export async function POST(req: Request) {
           await tx.focusSession.upsert({
             where: { id: s.id },
             update: {
+              userId,
               taskId: s.taskId,
               start: BigInt(s.start),
               end: s.end !== null && s.end !== undefined ? BigInt(s.end) : null,
