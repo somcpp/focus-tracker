@@ -16,6 +16,7 @@ import { TimerEffects } from "./TimerEffects";
 import { TaskDetail } from "./TaskDetail";
 import { CategoryForm } from "./CategoryForm";
 import { AuthModal } from "./AuthModal";
+import { ShareProgressModal } from "./ShareProgressModal";
 import { requestPersistentStorage } from "@/lib/persist";
 import { clearLocalStoreOnLogout, initializeDatabaseSync, queueDatabaseSync, syncWithCloud, useSyncStatus } from "@/lib/sync";
 import { useAuth } from "@/lib/auth-client";
@@ -100,6 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <TimerEffects />
           <TaskDetail />
           <AuthModal />
+          <ShareProgressModal />
           <Toaster />
         </>
       )}

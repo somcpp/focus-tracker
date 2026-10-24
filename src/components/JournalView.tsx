@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ChevronLeft, ChevronRight, Lightbulb, ListChecks, Mountain, NotebookPen, PenLine, Trophy, type LucideIcon } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Lightbulb, ListChecks, Mountain, NotebookPen, PenLine, Share2, Trophy, type LucideIcon } from "lucide-react";
 import { useMemo } from "react";
 import { emptyJournal, useStore } from "@/lib/store";
+import { useUi } from "@/lib/ui-store";
 import { useActiveSession, useNow, useToday } from "@/lib/hooks";
 import { categoryTotals, journalHasContent, journalStreak, sessionsByTask, taskMs } from "@/lib/selectors";
 import { addDays, formatDuration, parseDayKey, prettyDate } from "@/lib/time";
@@ -31,6 +32,7 @@ export function JournalView({ date }: { date: string }) {
   const router = useRouter();
   const journal = useStore((s) => s.journals[date]) ?? emptyJournal(date);
   const saveJournal = useStore((s) => s.saveJournal);
+  const openShare = useUi((s) => s.openShare);
   const label = date === today ? "Today" : date === addDays(today, -1) ? "Yesterday" : null;
   const go = (d: string) => router.push(d === today ? "/journal" : `/journal/${d}`);
 
@@ -61,6 +63,9 @@ export function JournalView({ date }: { date: string }) {
                 Today
               </Button>
             )}
+            <Button size="sm" variant="secondary" onClick={() => openShare(date)}>
+              <Share2 size={14} className="text-accent" /> Share
+            </Button>
           </>
         }
       />

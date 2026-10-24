@@ -2,7 +2,7 @@
 
 import { ClientOnly } from "@/components/ClientOnly";
 import Link from "next/link";
-import { BarChart3, CheckCircle2, Clock3, Hourglass, Target, TrendingUp } from "lucide-react";
+import { BarChart3, CheckCircle2, Clock3, Hourglass, Share2, Target, TrendingUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useToday } from "@/lib/hooks";
@@ -16,7 +16,7 @@ import type { Category, Difficulty, Session, Task } from "@/lib/types";
 import { DayBreakdown } from "@/components/DayBreakdown";
 import { StatCard } from "@/components/StatCard";
 import { RichText } from "@/components/RichText";
-import { EmptyState, PageHeader, SectionTitle } from "@/components/ui";
+import { Button, EmptyState, PageHeader, SectionTitle } from "@/components/ui";
 
 const RANGES = [
   { key: 7, label: "7D" },
@@ -37,6 +37,7 @@ function trend(cur: number, prev: number, label: string): string | undefined {
 
 function StatsPage() {
   const today = useToday();
+  const openShare = useUi((s) => s.openShare);
   const [range, setRange] = useState<number>(30);
   const tasks = useStore((s) => s.tasks);
   const sessions = useStore((s) => s.sessions);
@@ -83,18 +84,23 @@ function StatsPage() {
       title="Insights"
       subtitle="Where your time goes, and whether you're trending up."
       actions={
-        <div className="flex rounded-lg border border-line bg-card p-0.5">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => setRange(r.key)}
-              className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                range === r.key ? "bg-accent text-white shadow-sm" : "text-muted hover:text-ink"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={() => openShare(today)}>
+            <Share2 size={14} className="text-accent" /> Share Card
+          </Button>
+          <div className="flex rounded-lg border border-line bg-card p-0.5">
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                onClick={() => setRange(r.key)}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                  range === r.key ? "bg-accent text-white shadow-sm" : "text-muted hover:text-ink"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       }
     />

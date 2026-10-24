@@ -161,7 +161,10 @@ const useToasts = create<{
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })),
 }));
 
-export const toast = (t: Omit<Toast, "id">, ms?: number) => useToasts.getState().push(t, ms);
+export const toast = (t: string | Omit<Toast, "id">, ms?: number) => {
+  const payload = typeof t === "string" ? { text: t, tone: "success" as const } : t;
+  useToasts.getState().push(payload, ms);
+};
 
 export function Toaster() {
   const { toasts, dismiss } = useToasts();

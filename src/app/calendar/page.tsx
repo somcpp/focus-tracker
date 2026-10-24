@@ -3,7 +3,7 @@
 import { ClientOnly } from "@/components/ClientOnly";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarCheck, Check, ChevronDown, Clock3, Inbox, NotebookPen, Pencil, Star, TrendingUp } from "lucide-react";
+import { CalendarCheck, Check, ChevronDown, Clock3, Inbox, NotebookPen, Pencil, Share2, Star, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useActiveSession, useNow, useToday } from "@/lib/hooks";
@@ -142,6 +142,7 @@ function DayLog({ date, today, now }: { date: string; today: string; now: number
   const daySessions = dayTasks.flatMap((t) => byTask.get(t.id) ?? []);
   const total = dayTasks.reduce((s, t) => s + taskMs(t.id, byTask, now), 0);
   const cats = categoriesForDay(date, categories, tasks, dayCategories).filter((c) => dayTasks.some((t) => t.categoryId === c.id));
+  const openShare = useUi((s) => s.openShare);
   const mood = getMood(journal?.mood);
   const MoodIcon = mood?.icon;
   const label = date === today ? "Today" : date === addDays(today, -1) ? "Yesterday" : null;
@@ -178,6 +179,9 @@ function DayLog({ date, today, now }: { date: string; today: string; now: number
                 <MoodIcon size={14} /> {mood.label}
               </span>
             )}
+            <Button size="sm" variant="secondary" onClick={() => openShare(date)}>
+              <Share2 size={14} className="text-accent" /> Share
+            </Button>
             <Link href={journalHref}>
               <Button size="sm" variant="secondary">
                 <NotebookPen size={14} /> Journal

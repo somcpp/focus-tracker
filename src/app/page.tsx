@@ -2,10 +2,11 @@
 
 import { ClientOnly } from "@/components/ClientOnly";
 import Link from "next/link";
-import { ChevronDown, CheckCircle2, Clock3, History, Layers, NotebookPen, Sun, Sunrise, Sunset, Moon, Sparkles, X } from "lucide-react";
+import { ChevronDown, CheckCircle2, Clock3, History, Layers, NotebookPen, Share2, Sun, Sunrise, Sunset, Moon, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth-client";
+import { useUi } from "@/lib/ui-store";
 import { useActiveSession, useNow, useToday } from "@/lib/hooks";
 import { categoryTotals, dayTotals } from "@/lib/selectors";
 import { addDays, formatDuration, prettyDate } from "@/lib/time";
@@ -36,6 +37,7 @@ function TimeSlotIcon({ iconName, className }: { iconName: string; className?: s
 
 function TodayPage() {
   const today = useToday();
+  const openShare = useUi((s) => s.openShare);
   const settingsName = useStore((s) => s.settings.name);
   const authUser = useAuth((s) => s.user);
   const name = settingsName || authUser?.name?.split(" ")[0] || "";
@@ -139,11 +141,16 @@ function TodayPage() {
               {count}
             </span>
           </h2>
-          <Link href="/journal" className="ml-auto">
-            <Button size="sm" variant="secondary">
-              <NotebookPen size={14} /> Journal
+          <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={() => openShare(today)}>
+              <Share2 size={14} className="text-accent" /> Share Card
             </Button>
-          </Link>
+            <Link href="/journal">
+              <Button size="sm" variant="secondary">
+                <NotebookPen size={14} /> Journal
+              </Button>
+            </Link>
+          </div>
         </div>
         <DayBoard date={today} />
       </div>
