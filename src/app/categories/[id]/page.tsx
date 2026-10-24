@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { CalendarDays, Check, CheckCircle2, Clock3, FolderSearch, ListTodo, Pencil, Plus, Search } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { CalendarDays, Check, CheckCircle2, Clock3, FolderSearch, ListTodo, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ClientOnly } from "@/components/ClientOnly";
 import { CategoryForm } from "@/components/CategoryForm";
@@ -33,12 +33,13 @@ const shortDate = (d: string, year = false) =>
   parseDayKey(d).toLocaleDateString([], { month: "short", day: "numeric", ...(year ? { year: "numeric" } : {}) });
 
 function CategoryPage() {
+  const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const today = useToday();
   const category = useStore((s) => s.categories.find((c) => c.id === id));
   const tasks = useStore((s) => s.tasks);
   const sessions = useStore((s) => s.sessions);
-  const { updateCategory, addCategoryToDay } = useStore.getState();
+  const { updateCategory, deleteCategory, addCategoryToDay } = useStore.getState();
   const openTask = useUi((s) => s.openTask);
   const active = useActiveSession();
   const now = useNow(!!active, 5000);
@@ -115,6 +116,19 @@ function CategoryPage() {
             <Button variant="secondary" onClick={() => setEditing(true)}>
               <Pencil size={14} /> Edit
             </Button>
+            <Button
+              variant="secondary"
+              className="text-red-600 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+              onClick={() => {
+                if (confirm(`Delete "${category.name}" and all its tasks and tracked time?`)) {
+                  deleteCategory(category.id);
+                  toast({ tone: "success", text: `Category "${category.name}" deleted` });
+                  router.push("/");
+                }
+              }}
+            >
+              <Trash2 size={14} /> Delete
+            </Button>
             <Link
               href="/"
               onClick={() => {
@@ -129,7 +143,16 @@ function CategoryPage() {
           </>
         }
       />
-      <CategoryForm open={editing} initial={category} onClose={() => setEditing(false)} onSave={(v) => updateCategory(category.id, v)} />
+      <CategoryForm
+        open={editing}
+        initial={category}
+        onClose={() => setEditing(false)}
+        onSave={(v) => updateCategory(category.id, v)}
+        onDelete={() => {
+          deleteCategory(category.id);
+          router.push("/");
+        }}
+      />
 
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

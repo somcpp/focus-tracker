@@ -161,7 +161,7 @@ export const useStore = create<Store>()(
         set((st) => ({
           categories: st.categories.map((c) => (c.id === id ? { ...c, ...patch } : c)),
         })),
-      deleteCategory: (id) =>
+      deleteCategory: (id) => {
         set((st) => {
           const taskIds = new Set(st.tasks.filter((t) => t.categoryId === id).map((t) => t.id));
           const dayCategories: Record<string, string[]> = {};
@@ -173,8 +173,22 @@ export const useStore = create<Store>()(
             tasks: st.tasks.filter((t) => !taskIds.has(t.id)),
             sessions: st.sessions.filter((s) => !taskIds.has(s.taskId)),
             dayCategories,
+            deletedCategoryIds: Array.from(new Set([...(st.deletedCategoryIds || []), id])),
           };
-        }),
+        });
+
+        // Trigger immediate cloud deletion
+        if (typeof window !== "undefined") {
+          try {
+            fetch(`/api/sync?categoryId=${encodeURIComponent(id)}`, {
+              method: "DELETE",
+              credentials: "include",
+            }).catch(() => {});
+          } catch {
+            // ignore
+          }
+        }
+      },
       moveCategory: (id, delta) =>
         set((st) => {
           const i = st.categories.findIndex((c) => c.id === id);

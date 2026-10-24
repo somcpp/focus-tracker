@@ -67,12 +67,17 @@ export async function syncWithCloud(): Promise<void> {
     }
 
     const local = useStore.getState();
+    const deletedCatSet = new Set(local.deletedCategoryIds || []);
 
     // 2. Perform intelligent bidirectional merge:
-    // Categories: union by id
+    // Categories: union by id, excluding any deleted categories
     const catMap = new Map<string, Category>();
-    remoteCategories.forEach((c) => catMap.set(c.id, c));
-    local.categories.forEach((c) => catMap.set(c.id, c));
+    remoteCategories
+      .filter((c) => !deletedCatSet.has(c.id))
+      .forEach((c) => catMap.set(c.id, c));
+    local.categories
+      .filter((c) => !deletedCatSet.has(c.id))
+      .forEach((c) => catMap.set(c.id, c));
     const mergedCategories = Array.from(catMap.values());
 
     // Tasks: union by id
@@ -120,6 +125,7 @@ export async function syncWithCloud(): Promise<void> {
       sessions: mergedSessions,
       journals: mergedJournals,
       settings: mergedSettings,
+      deletedCategoryIds: Array.from(deletedCatSet),
     };
 
     await fetch("/api/sync", {
@@ -159,6 +165,7 @@ export function queueDatabaseSync(delayMs = 1200) {
         sessions: state.sessions,
         journals: state.journals,
         settings: state.settings,
+        deletedCategoryIds: state.deletedCategoryIds || [],
       };
 
       const headers: Record<string, string> = {

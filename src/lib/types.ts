@@ -87,4 +87,5 @@ export interface PersistedState {
   /** Categories explicitly added to a day (even when empty) */
   dayCategories: Record<string, string[]>;
   settings: Settings;
+  deletedCategoryIds?: string[];
 }

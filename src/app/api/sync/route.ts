@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     const userId = session?.userId ?? "default_local_user";
 
     const body = await req.json();
-    const { categories, tasks, sessions, journals, settings } = body;
+    const { categories, tasks, sessions, journals, settings, deletedCategoryIds } = body;
 
     // Ensure user exists
     await prisma.user.upsert({
@@ -68,6 +68,16 @@ export async function POST(req: Request) {
 
     // Run sync in transaction
     await prisma.$transaction(async (tx) => {
+      // Remove any explicitly deleted categories
+      if (Array.isArray(deletedCategoryIds) && deletedCategoryIds.length > 0) {
+        await tx.category.deleteMany({
+          where: {
+            userId,
+            id: { in: deletedCategoryIds },
+          },
+        });
+      }
+
       // Sync categories
       const categoryIdSet = new Set<string>();
       if (Array.isArray(categories)) {
@@ -264,5 +274,36 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Failed to sync data to Neon:", error);
     return NextResponse.json({ error: "Failed to sync" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const token = extractAuthToken(req);
+    const session = token ? await verifyNeonAuthToken(token) : null;
+    const userId = session?.userId ?? "default_local_user";
+
+    const { searchParams } = new URL(req.url);
+    const categoryId = searchParams.get("categoryId");
+    const taskId = searchParams.get("taskId");
+
+    if (categoryId) {
+      await prisma.category.deleteMany({
+        where: { id: categoryId, userId },
+      });
+      return NextResponse.json({ success: true, deleted: "category" });
+    }
+
+    if (taskId) {
+      await prisma.task.deleteMany({
+        where: { id: taskId, userId },
+      });
+      return NextResponse.json({ success: true, deleted: "task" });
+    }
+
+    return NextResponse.json({ error: "Missing entity id to delete" }, { status: 400 });
+  } catch (error) {
+    console.error("Failed to delete entity in Neon:", error);
+    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
   }
 }
