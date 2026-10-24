@@ -218,6 +218,17 @@ export const useAuth = create<AuthState>((set) => ({
     try {
       saveSession(null, null);
       set({ user: null, token: null });
+
+      // Cleanly wipe local store cache so previous user data is never leaked
+      if (typeof window !== "undefined") {
+        try {
+          const { clearLocalStoreOnLogout } = await import("./sync");
+          clearLocalStoreOnLogout();
+        } catch {
+          localStorage.removeItem("grindlog-v1");
+        }
+      }
+
       await fetch("/api/auth/sign-out", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -227,6 +238,9 @@ export const useAuth = create<AuthState>((set) => ({
       console.warn("Sign out failed:", err);
       saveSession(null, null);
       set({ user: null, token: null });
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("grindlog-v1");
+      }
     }
   },
 }));

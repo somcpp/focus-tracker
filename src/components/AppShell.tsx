@@ -17,7 +17,7 @@ import { TaskDetail } from "./TaskDetail";
 import { CategoryForm } from "./CategoryForm";
 import { AuthModal } from "./AuthModal";
 import { requestPersistentStorage } from "@/lib/persist";
-import { initializeDatabaseSync, queueDatabaseSync, syncWithCloud, useSyncStatus } from "@/lib/sync";
+import { clearLocalStoreOnLogout, initializeDatabaseSync, queueDatabaseSync, syncWithCloud, useSyncStatus } from "@/lib/sync";
 import { useAuth } from "@/lib/auth-client";
 
 const NAV = [
@@ -69,9 +69,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       queueDatabaseSync(2000);
     });
     const unsubAuth = useAuth.subscribe((state, prev) => {
-      if (state.user && state.user.id !== prev?.user?.id) {
-        // Immediately run bidirectional sync on sign in so other browsers pull all cloud data
-        syncWithCloud();
+      if (state.user?.id !== prev?.user?.id) {
+        if (state.user) {
+          // Immediately run bidirectional sync on sign in so other browsers pull all cloud data
+          syncWithCloud();
+        } else {
+          // Cleanly wipe local store cache on sign out so no previous user data remains
+          clearLocalStoreOnLogout();
+        }
       }
     });
     return () => {

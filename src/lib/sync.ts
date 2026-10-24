@@ -25,6 +25,30 @@ export const useSyncStatus = create<SyncStatusState>((set) => ({
 let syncTimeout: NodeJS.Timeout | null = null;
 let isSyncInProgress = false;
 
+const LAST_USER_KEY = "focus_last_synced_user_id";
+
+export function getLastSyncedUser(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(LAST_USER_KEY);
+}
+
+export function setLastSyncedUser(userId: string | null) {
+  if (typeof window === "undefined") return;
+  if (userId) localStorage.setItem(LAST_USER_KEY, userId);
+  else localStorage.removeItem(LAST_USER_KEY);
+}
+
+/**
+ * Wipes local cache completely on logout so a subsequent user on the same browser
+ * never sees the previous user's tasks or categories.
+ */
+export function clearLocalStoreOnLogout() {
+  if (typeof window === "undefined") return;
+  setLastSyncedUser(null);
+  useStore.getState().resetAll();
+  localStorage.removeItem("grindlog-v1");
+}
+
 /**
  * Robust 2-way sync:
  * 1. Pulls all cloud data (categories, tasks, sessions, journals, settings) from Neon Postgres.
@@ -64,6 +88,28 @@ export async function syncWithCloud(): Promise<void> {
       remoteSessions = data.sessions || [];
       remoteJournals = data.journals || {};
       remoteSettings = data.settings || null;
+    }
+
+    const currentUserId = auth.user?.id || null;
+    const lastUser = getLastSyncedUser();
+
+    // Account switch protection:
+    // If user switched accounts (e.g. was logged in as user A, now logged in as user B),
+    // NEVER merge user A's local tasks into user B! Overwrite local store cleanly with user B's cloud data.
+    const isAccountSwitch = currentUserId && lastUser && currentUserId !== lastUser;
+    setLastSyncedUser(currentUserId);
+
+    if (isAccountSwitch) {
+      useStore.setState({
+        categories: remoteCategories,
+        tasks: remoteTasks,
+        sessions: remoteSessions,
+        journals: remoteJournals,
+        settings: remoteSettings ? { ...useStore.getState().settings, ...remoteSettings } : useStore.getState().settings,
+        deletedCategoryIds: [],
+      });
+      useSyncStatus.getState().setSyncing(false);
+      return;
     }
 
     const local = useStore.getState();
