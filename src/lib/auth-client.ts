@@ -50,7 +50,7 @@ function saveSession(user: AuthUser | null, token: string | null) {
 
 const initial = loadSavedSession();
 
-export const useAuth = create<AuthState>((set, get) => ({
+export const useAuth = create<AuthState>((set) => ({
   user: initial.user,
   token: initial.token,
   loading: false,
@@ -142,7 +142,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       } else {
         throw new Error(data?.message || "Failed to initiate Google sign-in");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Google sign-in error:", err);
       throw err;
     }
@@ -175,8 +175,9 @@ export const useAuth = create<AuthState>((set, get) => ({
       }
 
       return { error: "Authentication failed. Please try again." };
-    } catch (err: any) {
-      return { error: err.message || "Failed to sign in" };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to sign in";
+      return { error: message };
     }
   },
 
@@ -207,8 +208,9 @@ export const useAuth = create<AuthState>((set, get) => ({
       }
 
       return { error: "Registration failed. Please try again." };
-    } catch (err: any) {
-      return { error: err.message || "Failed to sign up" };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to sign up";
+      return { error: message };
     }
   },
 

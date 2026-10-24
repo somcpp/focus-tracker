@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { extractAuthToken, verifyNeonAuthToken } from "@/lib/auth";
+import type { Journal } from "@/lib/types";
 
 export async function GET(req: Request) {
   try {
@@ -142,7 +143,7 @@ export async function POST(req: Request) {
 
       // Sync journals
       if (journals && typeof journals === "object") {
-        for (const [date, j] of Object.entries(journals as Record<string, any>)) {
+        for (const [date, j] of Object.entries(journals as Record<string, Journal>)) {
           await tx.journal.upsert({
             where: {
               userId_date: {
@@ -156,7 +157,7 @@ export async function POST(req: Request) {
               challenges: j.challenges ?? "",
               learnings: j.learnings ?? "",
               notes: j.notes ?? "",
-              plan: j.plan ?? [],
+              plan: (j.plan ?? []) as unknown as import("@prisma/client").Prisma.InputJsonValue,
             },
             create: {
               userId,
@@ -166,7 +167,7 @@ export async function POST(req: Request) {
               challenges: j.challenges ?? "",
               learnings: j.learnings ?? "",
               notes: j.notes ?? "",
-              plan: j.plan ?? [],
+              plan: (j.plan ?? []) as unknown as import("@prisma/client").Prisma.InputJsonValue,
             },
           });
         }

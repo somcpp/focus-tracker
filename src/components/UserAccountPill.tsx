@@ -1,6 +1,6 @@
 "use client";
 
-import { Cloud, User as UserIcon } from "lucide-react";
+import { Cloud } from "lucide-react";
 import { useAuth } from "@/lib/auth-client";
 
 export function UserAccountPill({ className = "" }: { className?: string }) {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-client";
 import { Button, Modal } from "./ui";
-import { CheckCircle2, Cloud, LogIn, LogOut, Mail, User, X } from "lucide-react";
+import { Cloud, LogOut } from "lucide-react";
 
 export function AuthModal() {
   const { user, modalOpen, modalMode, setModalOpen, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut } =
@@ -45,8 +45,9 @@ export function AuthModal() {
     setLoading(true);
     try {
       await signInWithGoogle();
-    } catch (err: any) {
-      setError(err?.message || "Failed to start Google sign-in");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to start Google sign-in";
+      setError(message);
       setLoading(false);
     }
   };

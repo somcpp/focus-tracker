@@ -59,10 +59,10 @@ async function proxyAuth(req: NextRequest, { params }: { params: Promise<{ path:
 
   // Handle get-session with DB fallback if cross-origin cookie dropped
   if (pathStr === "get-session" && req.method === "GET") {
-    let json: any = null;
+    let json: Record<string, unknown> | null = null;
     try {
       const text = await res.text();
-      if (text) json = JSON.parse(text);
+      if (text) json = JSON.parse(text) as Record<string, unknown>;
     } catch {
       // not json
     }
@@ -81,11 +81,20 @@ async function proxyAuth(req: NextRequest, { params }: { params: Promise<{ path:
 
     const verifier = req.nextUrl.searchParams.get("neon_auth_session_verifier");
 
+    interface SessionDbRow {
+      token: string;
+      expiresAt: Date;
+      id: string;
+      name: string | null;
+      email: string;
+      image: string | null;
+    }
+
     try {
       const { prisma } = await import("@/lib/prisma");
-      let rows: any[] = [];
+      let rows: SessionDbRow[] = [];
       if (sessionToken) {
-        rows = await prisma.$queryRawUnsafe<any[]>(
+        rows = await prisma.$queryRawUnsafe<SessionDbRow[]>(
           `SELECT s.token, s."expiresAt", u.id, u.name, u.email, u.image 
            FROM neon_auth.session s 
            JOIN neon_auth.user u ON s."userId" = u.id 
@@ -94,7 +103,7 @@ async function proxyAuth(req: NextRequest, { params }: { params: Promise<{ path:
           sessionToken
         );
       } else if (verifier) {
-        rows = await prisma.$queryRawUnsafe<any[]>(
+        rows = await prisma.$queryRawUnsafe<SessionDbRow[]>(
           `SELECT s.token, s."expiresAt", u.id, u.name, u.email, u.image 
            FROM neon_auth.session s 
            JOIN neon_auth.user u ON s."userId" = u.id 
