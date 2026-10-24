@@ -1,7 +1,7 @@
 "use client";
 
 import { ClientOnly } from "@/components/ClientOnly";
-import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Download, Moon, Pencil, Plus, ShieldCheck, Sun, Trash2, Upload } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Cloud, Download, Moon, Pencil, Plus, ShieldCheck, Sun, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isStoragePersisted, requestPersistentStorage } from "@/lib/persist";
 import { useStore } from "@/lib/store";
@@ -10,15 +10,54 @@ import { CategoryIcon } from "@/lib/icons";
 import type { Category, PersistedState } from "@/lib/types";
 import { CategoryForm } from "@/components/CategoryForm";
 import { Button, IconButton, PageHeader, toast } from "@/components/ui";
+import { useAuth } from "@/lib/auth-client";
 
 function SettingsPage() {
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
+  const user = useAuth((s) => s.user);
+  const setModalOpen = useAuth((s) => s.setModalOpen);
 
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title="Settings" subtitle="Goals, categories, preferences and data." />
       <div className="flex flex-col gap-4">
+        <Section title="Account & Cloud Sync" description="Neon Managed Better Auth & PostgreSQL synchronization.">
+          {user ? (
+            <div className="flex flex-wrap items-center justify-between gap-4 py-1">
+              <div className="flex items-center gap-3">
+                {user.image ? (
+                  <img src={user.image} alt={user.name} className="h-10 w-10 rounded-full border border-line object-cover" />
+                ) : (
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white">
+                    {(user.name || user.email || "U")[0].toUpperCase()}
+                  </span>
+                )}
+                <div>
+                  <p className="text-sm font-bold text-ink">{user.name || "Focus User"}</p>
+                  <p className="text-xs text-muted">{user.email}</p>
+                  <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                    <Cloud size={13} className="text-emerald-500" /> Synced to Neon Postgres
+                  </p>
+                </div>
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => setModalOpen(true)}>
+                Manage Account
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-4 py-1">
+              <div>
+                <p className="text-sm font-semibold text-ink">Local Guest Mode</p>
+                <p className="text-xs text-muted">Data is saved in this browser. Sign in or connect Google to backup and sync across devices.</p>
+              </div>
+              <Button size="sm" onClick={() => setModalOpen(true, "signin")}>
+                <Cloud size={14} /> Sign In / Sign Up
+              </Button>
+            </div>
+          )}
+        </Section>
+
         <Section title="General" description="How the app greets and looks for you.">
           <Field label="Display name" hint="Used in the greeting on Today">
             <input

@@ -3,7 +3,7 @@
 import { plainText } from "@/lib/links";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, CalendarDays, Check, Flame, Home, Moon, NotebookPen, Pause, Plus, Settings, Sun, Timer } from "lucide-react";
+import { BarChart3, CalendarDays, Check, Cloud, Flame, Home, Moon, NotebookPen, Pause, Plus, Settings, Sun, Timer } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "@/lib/store";
 import { useActiveSession, useMounted, useNow, useToday } from "@/lib/hooks";
@@ -15,7 +15,10 @@ import { Toaster } from "./ui";
 import { TimerEffects } from "./TimerEffects";
 import { TaskDetail } from "./TaskDetail";
 import { CategoryForm } from "./CategoryForm";
+import { AuthModal } from "./AuthModal";
 import { requestPersistentStorage } from "@/lib/persist";
+import { initializeDatabaseSync, queueDatabaseSync } from "@/lib/sync";
+import { useAuth } from "@/lib/auth-client";
 
 const NAV = [
   { href: "/", label: "Today", icon: Home, color: "#2f6bff" },
@@ -52,6 +55,22 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // Check auth session on mount
+  useEffect(() => {
+    if (!mounted) return;
+    useAuth.getState().checkSession();
+  }, [mounted]);
+
+  // Sync with Neon Postgres: hydrate if empty, debounced push on changes
+  useEffect(() => {
+    if (!mounted) return;
+    initializeDatabaseSync();
+    const unsub = useStore.subscribe(() => {
+      queueDatabaseSync(2000);
+    });
+    return unsub;
+  }, [mounted]);
+
   // Pages gate themselves with <ClientOnly>; the chrome depends on stored data too.
   return (
     <div className="flex min-h-screen">
@@ -66,6 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <MobileNav />
           <TimerEffects />
           <TaskDetail />
+          <AuthModal />
           <Toaster />
         </>
       )}
@@ -178,8 +198,9 @@ function Sidebar() {
       </ul>
       <CategoryForm open={creating} onClose={() => setCreating(false)} onSave={(v) => addCategory(v.name, v.icon, v.color)} />
 
-      <div className="mt-auto flex flex-col gap-3 pt-6">
+      <div className="mt-auto flex flex-col gap-2.5 pt-6">
         <RunningCard />
+        <AuthSidebarButton />
         <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-br from-[#ff9a3c] to-[#ff5f45] p-3.5 text-white shadow-[0_8px_20px_-10px_#ff6a3d]">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/20">
             <Flame size={19} className="fill-white/30" />
@@ -200,6 +221,44 @@ function Sidebar() {
         </button>
       </div>
     </aside>
+  );
+}
+
+function AuthSidebarButton() {
+  const user = useAuth((s) => s.user);
+  const setModalOpen = useAuth((s) => s.setModalOpen);
+
+  if (user) {
+    return (
+      <button
+        onClick={() => setModalOpen(true)}
+        className="flex items-center gap-2.5 rounded-xl border border-line bg-card-2 p-2.5 text-left transition hover:border-accent/40"
+      >
+        {user.image ? (
+          <img src={user.image} alt={user.name} className="h-8 w-8 rounded-full border border-line object-cover" />
+        ) : (
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white">
+            {(user.name || user.email || "U")[0].toUpperCase()}
+          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-bold text-ink">{user.name || "Focus User"}</p>
+          <p className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Cloud synced
+          </p>
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setModalOpen(true, "signin")}
+      className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-3 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 transition hover:brightness-110 active:scale-98"
+    >
+      <Cloud size={15} className="text-white/90" />
+      <span>Sign In / Cloud Sync</span>
+    </button>
   );
 }
 
@@ -245,10 +304,38 @@ function RunningCard() {
 
 function MobileTopBar() {
   const streak = useStreak();
+  const user = useAuth((s) => s.user);
+  const setModalOpen = useAuth((s) => s.setModalOpen);
   return (
     <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-card/90 px-4 py-3 backdrop-blur md:hidden">
       <Logo />
       <div className="ml-auto flex items-center gap-2">
+        <button
+          onClick={() => setModalOpen(true)}
+          className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-xs transition ${
+            user
+              ? "border border-line bg-card text-ink"
+              : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-blue-500/20 hover:brightness-110"
+          }`}
+        >
+          {user ? (
+            <>
+              {user.image ? (
+                <img src={user.image} alt={user.name} className="h-4 w-4 rounded-full object-cover" />
+              ) : (
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-accent text-[9px] font-bold text-white">
+                  {(user.name || "U")[0].toUpperCase()}
+                </span>
+              )}
+              <span>{user.name?.split(" ")[0] || "Account"}</span>
+            </>
+          ) : (
+            <>
+              <Cloud size={13} className="text-white" />
+              <span>Sign In</span>
+            </>
+          )}
+        </button>
         <span className="flex items-center gap-1 rounded-full bg-gradient-to-br from-[#ff9a3c] to-[#ff5f45] px-2.5 py-1 text-xs font-bold text-white">
           <Flame size={13} /> {streak.current}
         </span>
