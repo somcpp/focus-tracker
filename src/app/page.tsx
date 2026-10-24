@@ -44,9 +44,8 @@ function TodayPage() {
   const name = settingsName || authUser?.name?.split(" ")[0] || "";
   const count = useStore((s) => s.tasks.filter((t) => t.date === today).length);
 
-  // Dynamic time-aware welcome, subtitles, and quotes
+  // Dynamic time-aware welcome and subtitle
   const [now, setNow] = useState(() => new Date());
-  const [quoteOffset, setQuoteOffset] = useState(() => Math.floor(Math.random() * 20));
   const [subtitleOffset, setSubtitleOffset] = useState(() => Math.floor(Math.random() * 20));
   const [greetingOffset, setGreetingOffset] = useState(() => Math.floor(Math.random() * 10));
   const [isFading, setIsFading] = useState(false);
@@ -59,16 +58,16 @@ function TodayPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Periodically cycle quote and subtitle with smooth fade transition
+  // Change message gently once every hour (or manually on demand via shuffle button)
   useEffect(() => {
+    const ONE_HOUR_MS = 60 * 60 * 1000;
     const interval = setInterval(() => {
       setIsFading(true);
       setTimeout(() => {
-        setQuoteOffset((prev) => prev + 1);
         setSubtitleOffset((prev) => prev + 1);
         setIsFading(false);
       }, 300);
-    }, 22000);
+    }, ONE_HOUR_MS);
 
     return () => clearInterval(interval);
   }, []);
@@ -76,7 +75,6 @@ function TodayPage() {
   const handleShuffleQuote = () => {
     setIsFading(true);
     setTimeout(() => {
-      setQuoteOffset((prev) => prev + 1);
       setSubtitleOffset((prev) => prev + 1);
       setGreetingOffset((prev) => prev + 1);
       setIsFading(false);
@@ -85,7 +83,6 @@ function TodayPage() {
 
   const currentGreeting = timeData.greetings[greetingOffset % timeData.greetings.length];
   const currentSubtitle = timeData.subtitles[subtitleOffset % timeData.subtitles.length];
-  const currentQuote = timeData.quotes[quoteOffset % timeData.quotes.length];
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -98,37 +95,29 @@ function TodayPage() {
                 {name ? `, ${name}` : ""}!
               </span>
             </h1>
-            <p
-              className={`mt-1 text-[15px] text-muted transition-opacity duration-300 ${
-                isFading ? "opacity-30" : "opacity-100"
-              }`}
-            >
-              {currentSubtitle}
-            </p>
-          </div>
-          <div className="shrink-0 sm:text-right sm:max-w-xs md:max-w-sm">
-            <p className="text-[15px] font-medium text-ink-2">
-              {prettyDate(today, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
-            </p>
-            <div className="mt-1 flex items-center gap-1.5 text-[13px] italic text-muted sm:justify-end">
-              <TimeSlotIcon iconName={timeData.iconName} className={`shrink-0 ${timeData.iconColor}`} />
-              <span
-                className={`transition-opacity duration-300 ${
-                  isFading ? "opacity-0" : "opacity-100"
-                } truncate sm:max-w-[280px] md:max-w-[340px]`}
-                title={currentQuote}
+            <div className="mt-1 flex items-center gap-1.5">
+              <p
+                className={`text-[15px] text-muted transition-opacity duration-300 ${
+                  isFading ? "opacity-30" : "opacity-100"
+                }`}
               >
-                “{currentQuote}”
-              </span>
+                {currentSubtitle}
+              </p>
               <button
                 type="button"
                 onClick={handleShuffleQuote}
-                title="Shuffle inspiring quote"
-                className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-muted/60 hover:bg-card-2 hover:text-ink transition active:scale-90"
+                title="Shuffle message"
+                className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-muted/50 hover:bg-card-2 hover:text-ink transition active:scale-90"
               >
                 <Sparkles size={12} className="transition hover:rotate-12" />
               </button>
             </div>
+          </div>
+          <div className="shrink-0 sm:text-right">
+            <p className="flex items-center gap-1.5 text-[15px] font-medium text-ink-2 sm:justify-end">
+              <TimeSlotIcon iconName={timeData.iconName} className={`shrink-0 ${timeData.iconColor}`} />
+              {prettyDate(today, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+            </p>
           </div>
         </header>
 
