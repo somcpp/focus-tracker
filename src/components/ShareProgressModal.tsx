@@ -4,6 +4,7 @@ import { useRef, useState, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Calendar,
+  CalendarDays,
   Check,
   CheckCircle2,
   ChevronLeft,
@@ -20,7 +21,7 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth-client";
-import { useUi } from "@/lib/ui-store";
+import { useUi, type ShareScope } from "@/lib/ui-store";
 import { useActiveSession, useNow, useToday } from "@/lib/hooks";
 import { dayTotals, streaks, sessionsByTask, taskMs } from "@/lib/selectors";
 import { solid } from "@/lib/colors";
@@ -70,17 +71,28 @@ const THEMES: { id: CardTheme; name: string; preview: string; aura: string; bord
 export function ShareProgressModal() {
   const open = useUi((s) => s.shareModalOpen);
   const shareDate = useUi((s) => s.shareDate);
+  const uiScope = useUi((s) => s.shareScope);
   const closeShare = useUi((s) => s.closeShare);
   const today = useToday();
 
+  // Mode: "day" or "month"
+  const [selectedScope, setSelectedScope] = useState<ShareScope | null>(null);
+  const scope = selectedScope ?? (uiScope || "day");
+
+  // Day mode state
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const currentDate = selectedDate ?? (shareDate || today);
   const setCurrentDate = (d: string | ((prev: string) => string)) => {
     setSelectedDate((prev) => (typeof d === "function" ? d(prev ?? (shareDate || today)) : d));
   };
 
+  // Month mode navigation offset (0 = current month, -1 = previous month, etc.)
+  const [monthOffset, setMonthOffset] = useState<number>(0);
+
   const handleClose = () => {
     setSelectedDate(null);
+    setSelectedScope(null);
+    setMonthOffset(0);
     closeShare();
   };
 
@@ -105,20 +117,23 @@ export function ShareProgressModal() {
   const userName = settings.name || authUser?.name || "Focus User";
   const userAvatar = authUser?.image;
 
-  // Day calculations
+  // Day totals map
   const totals = useMemo(() => dayTotals(tasks, sessions, now), [tasks, sessions, now]);
-  const dayMs = totals.get(currentDate) ?? 0;
-  const dayMinutes = Math.round(dayMs / 60000);
-  const goalMinutes = settings.dailyGoalMinutes || 360;
-  const goalPercent = Math.min(999, Math.round((dayMinutes / goalMinutes) * 100));
 
+  // Overall streak
   const streak = useMemo(
     () => streaks(totals, settings.streakMinMinutes, today),
     [totals, settings.streakMinMinutes, today],
   );
 
+  // ---------------- DAILY CALCULATIONS ----------------
+  const dayMs = totals.get(currentDate) ?? 0;
+  const dayMinutes = Math.round(dayMs / 60000);
+  const goalMinutes = settings.dailyGoalMinutes || 360;
+  const goalPercent = Math.min(999, Math.round((dayMinutes / goalMinutes) * 100));
+
   const dayTasks = useMemo(() => tasks.filter((t) => t.date === currentDate), [tasks, currentDate]);
-  const completedTasks = useMemo(() => dayTasks.filter((t) => t.done), [dayTasks]);
+  const completedDayTasks = useMemo(() => dayTasks.filter((t) => t.done), [dayTasks]);
   const daySessions = useMemo(() => {
     const taskIds = new Set(dayTasks.map((t) => t.id));
     return sessions.filter((s) => taskIds.has(s.taskId));
@@ -126,8 +141,7 @@ export function ShareProgressModal() {
 
   const byTask = useMemo(() => sessionsByTask(daySessions), [daySessions]);
 
-  // Category breakdown
-  const categoryBreakdown = useMemo(() => {
+  const dayCategoryBreakdown = useMemo(() => {
     const map = new Map<string, number>();
     for (const t of dayTasks) {
       const ms = taskMs(t.id, byTask, now);
@@ -142,7 +156,6 @@ export function ShareProgressModal() {
           id: catId,
           name: cat?.name ?? "General",
           color: cat?.color ?? "blue",
-          icon: cat?.icon ?? "layers",
           durationMs: ms,
           percent: dayMs > 0 ? Math.round((ms / dayMs) * 100) : 0,
         };
@@ -154,8 +167,77 @@ export function ShareProgressModal() {
   const mood = journal ? getMood(journal.mood) : null;
   const win = journal?.wins?.trim();
 
+  // ---------------- MONTHLY CALCULATIONS ----------------
+  const currentMonthDate = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + monthOffset);
+    return d;
+  }, [monthOffset]);
+
+  const monthYear = currentMonthDate.getFullYear();
+  const monthIdx = currentMonthDate.getMonth();
+  const monthName = currentMonthDate.toLocaleDateString([], { month: "long", year: "numeric" });
+  const monthShortName = currentMonthDate.toLocaleDateString([], { month: "short" });
+  const monthPrefix = `${monthYear}-${String(monthIdx + 1).padStart(2, "0")}`;
+
+  const daysInMonth = new Date(monthYear, monthIdx + 1, 0).getDate();
+  const monthDayKeys = useMemo(() => {
+    return Array.from({ length: daysInMonth }, (_, i) => `${monthPrefix}-${String(i + 1).padStart(2, "0")}`).filter(
+      (d) => d <= today,
+    );
+  }, [daysInMonth, monthPrefix, today]);
+
+  const monthMs = useMemo(() => {
+    return monthDayKeys.reduce((sum, d) => sum + (totals.get(d) ?? 0), 0);
+  }, [monthDayKeys, totals]);
+
+  const activeDaysCount = useMemo(() => {
+    return monthDayKeys.filter((d) => (totals.get(d) ?? 0) > 0).length;
+  }, [monthDayKeys, totals]);
+
+  const monthTasks = useMemo(() => {
+    return tasks.filter((t) => t.date.startsWith(monthPrefix));
+  }, [tasks, monthPrefix]);
+
+  const completedMonthTasks = useMemo(() => {
+    return monthTasks.filter((t) => t.done);
+  }, [monthTasks]);
+
+  const monthSessions = useMemo(() => {
+    const taskIds = new Set(monthTasks.map((t) => t.id));
+    return sessions.filter((s) => taskIds.has(s.taskId));
+  }, [monthTasks, sessions]);
+
+  const monthByTask = useMemo(() => sessionsByTask(monthSessions), [monthSessions]);
+
+  const monthCategoryBreakdown = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of monthTasks) {
+      const ms = taskMs(t.id, monthByTask, now);
+      if (ms > 0) {
+        map.set(t.categoryId, (map.get(t.categoryId) ?? 0) + ms);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([catId, ms]) => {
+        const cat = categories.find((c) => c.id === catId);
+        return {
+          id: catId,
+          name: cat?.name ?? "General",
+          color: cat?.color ?? "blue",
+          durationMs: ms,
+          percent: monthMs > 0 ? Math.round((ms / monthMs) * 100) : 0,
+        };
+      })
+      .sort((a, b) => b.durationMs - a.durationMs);
+  }, [monthTasks, monthByTask, now, categories, monthMs]);
+
+  const avgFocusPerActiveDay = activeDaysCount > 0 ? Math.round(monthMs / activeDaysCount) : 0;
+  const activePercent = monthDayKeys.length > 0 ? Math.round((activeDaysCount / monthDayKeys.length) * 100) : 0;
+
   const themeConfig = THEMES.find((t) => t.id === selectedTheme) || THEMES[0];
 
+  // ---------------- ACTIONS ----------------
   const handleCopyImage = async () => {
     if (!cardRef.current || copyingImg) return;
     try {
@@ -172,10 +254,9 @@ export function ShareProgressModal() {
         toast("Card image copied! Ready to paste into Twitter, WhatsApp, Discord, or Slack.");
         setTimeout(() => setCopiedImg(false), 2500);
       } else {
-        // Fallback to downloading image if clipboard item unsupported
         const dataUrl = await toPng(cardRef.current, { pixelRatio: 2.5 });
         const link = document.createElement("a");
-        link.download = `focus-progress-${currentDate}.png`;
+        link.download = scope === "month" ? `focus-month-${monthPrefix}.png` : `focus-progress-${currentDate}.png`;
         link.href = dataUrl;
         link.click();
         toast("Saved progress card as PNG image!");
@@ -197,7 +278,7 @@ export function ShareProgressModal() {
         cacheBust: true,
       });
       const link = document.createElement("a");
-      link.download = `focus-progress-${currentDate}.png`;
+      link.download = scope === "month" ? `focus-month-${monthPrefix}.png` : `focus-progress-${currentDate}.png`;
       link.href = dataUrl;
       link.click();
       toast("Downloaded high-res progress card!");
@@ -212,20 +293,38 @@ export function ShareProgressModal() {
   const handleCopyText = async () => {
     try {
       setCopyingTxt(true);
-      const breakdownText =
-        categoryBreakdown.length > 0
-          ? "\n\nBreakdown:\n" +
-            categoryBreakdown.map((c) => `• ${c.name}: ${formatDuration(c.durationMs)} (${c.percent}%)`).join("\n")
-          : "";
+      let text = "";
 
-      const winText = win ? `\n🏆 Daily Win: ${win}` : "";
+      if (scope === "month") {
+        const breakdownText =
+          monthCategoryBreakdown.length > 0
+            ? "\n\nCategory Breakdown:\n" +
+              monthCategoryBreakdown.map((c) => `• ${c.name}: ${formatDuration(c.durationMs)} (${c.percent}%)`).join("\n")
+            : "";
 
-      const text = `🎯 Focus Tracker Report · ${prettyDate(currentDate)}
+        text = `🗓️ Focus Tracker Monthly Report · ${monthName}
+⏱️ ${formatDuration(monthMs)} Total Focus Time (${formatDuration(avgFocusPerActiveDay)}/active day)
+🔥 ${activeDaysCount}/${monthDayKeys.length} Days Active (${activePercent}% consistency)
+✅ ${completedMonthTasks.length}/${monthTasks.length} Tasks Smashed
+⚡ ${monthSessions.length} Focus Blocks Logged${breakdownText}
+
+Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
+      } else {
+        const breakdownText =
+          dayCategoryBreakdown.length > 0
+            ? "\n\nBreakdown:\n" +
+              dayCategoryBreakdown.map((c) => `• ${c.name}: ${formatDuration(c.durationMs)} (${c.percent}%)`).join("\n")
+            : "";
+
+        const winText = win ? `\n🏆 Daily Win: ${win}` : "";
+
+        text = `🎯 Focus Tracker Report · ${prettyDate(currentDate)}
 ⏱️ ${formatDuration(dayMs)} Focused (${goalPercent}% of daily goal)
-✅ ${completedTasks.length}/${dayTasks.length} Tasks Smashed
+✅ ${completedDayTasks.length}/${dayTasks.length} Tasks Smashed
 🔥 ${streak.current}-Day Streak${winText}${breakdownText}
 
 Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
+      }
 
       await navigator.clipboard.writeText(text);
       setCopiedTxt(true);
@@ -242,24 +341,30 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
     if (!cardRef.current) return;
     try {
       const blob = await toBlob(cardRef.current, { pixelRatio: 2.5 });
-      if (blob && navigator.canShare && navigator.canShare({ files: [new File([blob], "progress.png", { type: "image/png" })] })) {
-        const file = new File([blob], `focus-progress-${currentDate}.png`, { type: "image/png" });
+      const filename = scope === "month" ? `focus-month-${monthPrefix}.png` : `focus-progress-${currentDate}.png`;
+      if (blob && navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: "image/png" })] })) {
+        const file = new File([blob], filename, { type: "image/png" });
         await navigator.share({
-          title: `Focus Tracker - ${prettyDate(currentDate)}`,
-          text: `Crushed ${formatDuration(dayMs)} of deep focus on ${prettyDate(currentDate)}! 🔥`,
+          title: scope === "month" ? `Focus Tracker - ${monthName}` : `Focus Tracker - ${prettyDate(currentDate)}`,
+          text:
+            scope === "month"
+              ? `Logged ${formatDuration(monthMs)} of focus time in ${monthName}! 🔥`
+              : `Crushed ${formatDuration(dayMs)} of deep focus on ${prettyDate(currentDate)}! 🔥`,
           files: [file],
         });
       } else if (navigator.share) {
         await navigator.share({
-          title: `Focus Tracker - ${prettyDate(currentDate)}`,
-          text: `Crushed ${formatDuration(dayMs)} of deep focus with ${completedTasks.length}/${dayTasks.length} tasks done! 🔥`,
+          title: scope === "month" ? `Focus Tracker - ${monthName}` : `Focus Tracker - ${prettyDate(currentDate)}`,
+          text:
+            scope === "month"
+              ? `Logged ${formatDuration(monthMs)} of focus time in ${monthName}! 🔥`
+              : `Crushed ${formatDuration(dayMs)} of deep focus with ${completedDayTasks.length}/${dayTasks.length} tasks done! 🔥`,
           url: window.location.origin,
         });
       } else {
         handleCopyImage();
       }
     } catch (err) {
-      // User cancelled share
       console.log("Share dismissed", err);
     }
   };
@@ -305,60 +410,135 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
 
           {/* Modal Body - Scrollable */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-5">
-            {/* Date Navigator Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-line bg-card-2 p-2 sm:px-3">
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setCurrentDate(today)}
-                  className={`rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
-                    currentDate === today ? "bg-accent text-white shadow-sm" : "text-muted hover:text-ink hover:bg-card"
-                  }`}
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentDate(addDays(today, -1))}
-                  className={`rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
-                    currentDate === addDays(today, -1)
-                      ? "bg-accent text-white shadow-sm"
-                      : "text-muted hover:text-ink hover:bg-card"
-                  }`}
-                >
-                  Yesterday
-                </button>
-              </div>
+            {/* Scope Switcher: Day vs Month */}
+            <div className="flex rounded-2xl border border-line bg-card-2 p-1">
+              <button
+                type="button"
+                onClick={() => setSelectedScope("day")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition ${
+                  scope === "day"
+                    ? "bg-accent text-white shadow-sm"
+                    : "text-muted hover:text-ink hover:bg-card"
+                }`}
+              >
+                <Calendar size={14} />
+                <span>Daily Progress</span>
+              </button>
 
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setCurrentDate((d) => addDays(d, -1))}
-                  title="Previous Day"
-                  className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-card hover:text-ink transition"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <div className="relative flex items-center">
-                  <input
-                    type="date"
-                    value={currentDate}
-                    max={today}
-                    onChange={(e) => e.target.value && setCurrentDate(e.target.value)}
-                    className="cursor-pointer rounded-lg bg-card px-2.5 py-1 text-xs font-semibold text-ink border border-line focus:outline-none focus:ring-1 focus:ring-accent"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCurrentDate((d) => (d < today ? addDays(d, 1) : d))}
-                  disabled={currentDate >= today}
-                  title="Next Day"
-                  className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-card hover:text-ink transition disabled:opacity-30 disabled:pointer-events-none"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedScope("month")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition ${
+                  scope === "month"
+                    ? "bg-accent text-white shadow-sm"
+                    : "text-muted hover:text-ink hover:bg-card"
+                }`}
+              >
+                <CalendarDays size={14} />
+                <span>This Month&apos;s Progress</span>
+              </button>
             </div>
+
+            {/* Scope Navigation Bar */}
+            {scope === "day" ? (
+              <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-line bg-card-2 p-2 sm:px-3">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentDate(today)}
+                    className={`rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
+                      currentDate === today ? "bg-accent text-white shadow-sm" : "text-muted hover:text-ink hover:bg-card"
+                    }`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentDate(addDays(today, -1))}
+                    className={`rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
+                      currentDate === addDays(today, -1)
+                        ? "bg-accent text-white shadow-sm"
+                        : "text-muted hover:text-ink hover:bg-card"
+                    }`}
+                  >
+                    Yesterday
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentDate((d) => addDays(d, -1))}
+                    title="Previous Day"
+                    className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-card hover:text-ink transition"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <div className="relative flex items-center">
+                    <input
+                      type="date"
+                      value={currentDate}
+                      max={today}
+                      onChange={(e) => e.target.value && setCurrentDate(e.target.value)}
+                      className="cursor-pointer rounded-lg bg-card px-2.5 py-1 text-xs font-semibold text-ink border border-line focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentDate((d) => (d < today ? addDays(d, 1) : d))}
+                    disabled={currentDate >= today}
+                    title="Next Day"
+                    className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-card hover:text-ink transition disabled:opacity-30 disabled:pointer-events-none"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2.5 rounded-2xl border border-line bg-card-2 p-2 sm:px-3">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setMonthOffset(0)}
+                    className={`rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
+                      monthOffset === 0 ? "bg-accent text-white shadow-sm" : "text-muted hover:text-ink hover:bg-card"
+                    }`}
+                  >
+                    Current Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMonthOffset(-1)}
+                    className={`rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
+                      monthOffset === -1 ? "bg-accent text-white shadow-sm" : "text-muted hover:text-ink hover:bg-card"
+                    }`}
+                  >
+                    Last Month
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMonthOffset((m) => m - 1)}
+                    title="Previous Month"
+                    className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-card hover:text-ink transition"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="font-semibold text-xs text-ink">{monthName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setMonthOffset((m) => Math.min(0, m + 1))}
+                    disabled={monthOffset >= 0}
+                    title="Next Month"
+                    className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-card hover:text-ink transition disabled:opacity-30 disabled:pointer-events-none"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Theme Selector */}
             <div className="flex items-center gap-2">
@@ -426,81 +606,154 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
                       <p className="text-sm font-bold leading-none text-white tracking-tight">{userName}</p>
                       <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-white/70">
                         <Calendar size={12} className="text-white/60" />
-                        {prettyDate(currentDate, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                        {scope === "month"
+                          ? monthName
+                          : prettyDate(currentDate, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 backdrop-blur-md">
                     <span className="grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br from-[#ff9a3c] to-[#ff5f45] text-white">
-                      <Flame size={12} className="fill-white" />
+                      {scope === "month" ? <Trophy size={11} className="fill-white" /> : <Flame size={12} className="fill-white" />}
                     </span>
                     <span className="text-xs font-bold text-white tracking-wide">
-                      {streak.current}d Streak
+                      {scope === "month" ? `${activeDaysCount} Days Active` : `${streak.current}d Streak`}
                     </span>
                   </div>
                 </div>
 
-                {/* Hero Metrics Grid */}
-                <div className="relative z-10 my-5 grid grid-cols-2 gap-3">
-                  {/* Total Focus Time */}
-                  <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
-                        Focus Time
-                      </span>
-                      <Clock size={15} style={{ color: themeConfig.accent }} />
+                {/* HERO METRICS SECTION */}
+                {scope === "month" ? (
+                  /* MONTHLY HERO GRID */
+                  <div className="relative z-10 my-5 grid grid-cols-2 gap-3">
+                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
+                          {monthShortName} Total Focus
+                        </span>
+                        <Clock size={15} style={{ color: themeConfig.accent }} />
+                      </div>
+                      <p className="mt-2 text-3xl font-extrabold tracking-tight text-white tnum">
+                        {formatDuration(monthMs)}
+                      </p>
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-white/75">
+                        <span className="h-2 w-2 rounded-full" style={{ background: themeConfig.accent }} />
+                        <span>{formatDuration(avgFocusPerActiveDay)} / active day</span>
+                      </div>
                     </div>
-                    <p className="mt-2 text-3xl font-extrabold tracking-tight text-white tnum">
-                      {formatDuration(dayMs)}
-                    </p>
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-white/75">
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ background: goalPercent >= 100 ? "#10b981" : themeConfig.accent }}
-                      />
-                      <span>
-                        {goalPercent}% of daily goal
-                      </span>
+
+                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
+                          Consistency
+                        </span>
+                        <Flame size={15} className="text-amber-400" />
+                      </div>
+                      <p className="mt-2 text-3xl font-extrabold tracking-tight text-white tnum">
+                        {activePercent}
+                        <span className="text-lg font-medium text-white/50">%</span>
+                      </p>
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-white/75">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                        <span>{activeDaysCount} of {monthDayKeys.length} days active</span>
+                      </div>
+                    </div>
+
+                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
+                          Tasks Completed
+                        </span>
+                        <CheckCircle2 size={15} className="text-emerald-400" />
+                      </div>
+                      <p className="mt-2 text-2xl font-extrabold tracking-tight text-white tnum">
+                        {completedMonthTasks.length}
+                        <span className="text-base font-medium text-white/50">/{monthTasks.length}</span>
+                      </p>
+                      <div className="mt-1.5 text-xs text-white/60 truncate">
+                        {monthTasks.length > 0
+                          ? `${Math.round((completedMonthTasks.length / monthTasks.length) * 100)}% monthly completion`
+                          : "0 tasks logged"}
+                      </div>
+                    </div>
+
+                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
+                          Focus Sessions
+                        </span>
+                        <Layers size={15} className="text-purple-400" />
+                      </div>
+                      <p className="mt-2 text-2xl font-extrabold tracking-tight text-white tnum">
+                        {monthSessions.length}
+                      </p>
+                      <div className="mt-1.5 text-xs text-white/60 truncate">
+                        Blocks recorded this month
+                      </div>
                     </div>
                   </div>
-
-                  {/* Tasks Completed */}
-                  <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
-                        Tasks Smashed
-                      </span>
-                      <CheckCircle2 size={15} className="text-emerald-400" />
+                ) : (
+                  /* DAILY HERO GRID */
+                  <div className="relative z-10 my-5 grid grid-cols-2 gap-3">
+                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
+                          Focus Time
+                        </span>
+                        <Clock size={15} style={{ color: themeConfig.accent }} />
+                      </div>
+                      <p className="mt-2 text-3xl font-extrabold tracking-tight text-white tnum">
+                        {formatDuration(dayMs)}
+                      </p>
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-white/75">
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ background: goalPercent >= 100 ? "#10b981" : themeConfig.accent }}
+                        />
+                        <span>{goalPercent}% of daily goal</span>
+                      </div>
                     </div>
-                    <p className="mt-2 text-3xl font-extrabold tracking-tight text-white tnum">
-                      {completedTasks.length}
-                      <span className="text-lg font-medium text-white/50">/{dayTasks.length}</span>
-                    </p>
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-white/75">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                      <span>
-                        {dayTasks.length > 0
-                          ? `${Math.round((completedTasks.length / dayTasks.length) * 100)}% completion`
-                          : "0 tasks created"}
-                      </span>
+
+                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
+                          Tasks Smashed
+                        </span>
+                        <CheckCircle2 size={15} className="text-emerald-400" />
+                      </div>
+                      <p className="mt-2 text-3xl font-extrabold tracking-tight text-white tnum">
+                        {completedDayTasks.length}
+                        <span className="text-lg font-medium text-white/50">/{dayTasks.length}</span>
+                      </p>
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-white/75">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                        <span>
+                          {dayTasks.length > 0
+                            ? `${Math.round((completedDayTasks.length / dayTasks.length) * 100)}% completion`
+                            : "0 tasks created"}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {/* Category Progress Multi-Bar */}
-                {categoryBreakdown.length > 0 && (
+                {/* CATEGORY BREAKDOWN MULTI-BAR */}
+                {((scope === "month" ? monthCategoryBreakdown : dayCategoryBreakdown).length > 0) && (
                   <div className="relative z-10 my-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-sm">
                     <div className="mb-2.5 flex items-center justify-between text-xs font-semibold text-white/70">
                       <span className="flex items-center gap-1.5">
-                        <Layers size={13} className="text-white/60" /> Focus Breakdown
+                        <Layers size={13} className="text-white/60" />
+                        {scope === "month" ? "Monthly Breakdown" : "Focus Breakdown"}
                       </span>
-                      <span className="tnum font-bold text-white/90">{categoryBreakdown.length} Categories</span>
+                      <span className="tnum font-bold text-white/90">
+                        {(scope === "month" ? monthCategoryBreakdown : dayCategoryBreakdown).length} Categories
+                      </span>
                     </div>
 
                     {/* Progress Bar */}
                     <div className="flex h-3 w-full overflow-hidden rounded-full bg-white/10">
-                      {categoryBreakdown.map((c) => (
+                      {(scope === "month" ? monthCategoryBreakdown : dayCategoryBreakdown).map((c) => (
                         <div
                           key={c.id}
                           style={{
@@ -515,7 +768,7 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
 
                     {/* Category Legend Pills */}
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {categoryBreakdown.slice(0, 4).map((c) => (
+                      {(scope === "month" ? monthCategoryBreakdown : dayCategoryBreakdown).slice(0, 4).map((c) => (
                         <span
                           key={c.id}
                           className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-white/90"
@@ -532,39 +785,42 @@ Tracked with Focus Tracker · https://focus-tracker-lemon.vercel.app`;
                   </div>
                 )}
 
-                {/* Key Completed Tasks */}
-                {completedTasks.length > 0 && (
-                  <div className="relative z-10 my-3">
-                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-white/50">
-                      Top Accomplishments
-                    </p>
-                    <ul className="flex flex-col gap-1.5">
-                      {completedTasks.slice(0, 3).map((t) => (
-                        <li
-                          key={t.id}
-                          className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/90 border border-white/5"
-                        >
-                          <Check size={13} className="shrink-0 text-emerald-400" strokeWidth={3} />
-                          <span className="truncate flex-1">{plainText(t.title)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {/* DAILY EXCLUSIVE: Key Completed Tasks & Win */}
+                {scope === "day" && (
+                  <>
+                    {completedDayTasks.length > 0 && (
+                      <div className="relative z-10 my-3">
+                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-white/50">
+                          Top Accomplishments
+                        </p>
+                        <ul className="flex flex-col gap-1.5">
+                          {completedDayTasks.slice(0, 3).map((t) => (
+                            <li
+                              key={t.id}
+                              className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/90 border border-white/5"
+                            >
+                              <Check size={13} className="shrink-0 text-emerald-400" strokeWidth={3} />
+                              <span className="truncate flex-1">{plainText(t.title)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
-                {/* Daily Win & Mood Highlight (From Journal) */}
-                {(win || mood) && (
-                  <div className="relative z-10 my-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-xs text-white/90 flex items-start gap-2.5">
-                    <Trophy size={16} className="shrink-0 text-amber-400 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      {mood && (
-                        <span className="inline-block rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white mb-1">
-                          Mood: {mood.label}
-                        </span>
-                      )}
-                      {win && <p className="italic line-clamp-2 text-white/85">“{win}”</p>}
-                    </div>
-                  </div>
+                    {(win || mood) && (
+                      <div className="relative z-10 my-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-xs text-white/90 flex items-start gap-2.5">
+                        <Trophy size={16} className="shrink-0 text-amber-400 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          {mood && (
+                            <span className="inline-block rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white mb-1">
+                              Mood: {mood.label}
+                            </span>
+                          )}
+                          {win && <p className="italic line-clamp-2 text-white/85">“{win}”</p>}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Footer Watermark */}

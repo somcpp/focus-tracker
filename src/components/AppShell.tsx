@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { BarChart3, CalendarDays, Check, Cloud, Flame, Home, Moon, NotebookPen, Pause, Plus, Settings, Sun, Timer } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "@/lib/store";
+import { useUi } from "@/lib/ui-store";
 import { useActiveSession, useMounted, useNow, useToday } from "@/lib/hooks";
 import { dayTotals, streaks, titleKey } from "@/lib/selectors";
 import { formatClock } from "@/lib/time";
@@ -140,6 +141,7 @@ function Sidebar() {
   const categories = useStore((s) => s.categories);
   const tasks = useStore((s) => s.tasks);
   const addCategory = useStore((s) => s.addCategory);
+  const openShare = useUi((s) => s.openShare);
   const [creating, setCreating] = useState(false);
   const streak = useStreak();
   const todayCount = tasks.filter((t) => t.date === today).length;
@@ -217,7 +219,12 @@ function Sidebar() {
       <div className="mt-auto flex flex-col gap-2.5 pt-6">
         <RunningCard />
         <AuthSidebarButton />
-        <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-br from-[#ff9a3c] to-[#ff5f45] p-3.5 text-white shadow-[0_8px_20px_-10px_#ff6a3d]">
+        <button
+          type="button"
+          onClick={() => openShare(today, "day")}
+          title="Click to view & share your progress card"
+          className="flex w-full items-center gap-3 rounded-2xl bg-gradient-to-br from-[#ff9a3c] to-[#ff5f45] p-3.5 text-left text-white shadow-[0_8px_20px_-10px_#ff6a3d] transition hover:brightness-105 active:scale-98"
+        >
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/20">
             <Flame size={19} className="fill-white/30" />
           </span>
@@ -225,9 +232,12 @@ function Sidebar() {
             <p className="text-[15px] font-bold tnum">
               {streak.current} day streak
             </p>
-            <p className="text-xs text-white/80">Best: {streak.best} days</p>
+            <p className="text-xs text-white/80 flex items-center justify-between">
+              <span>Best: {streak.best}d</span>
+              <span className="font-semibold underline underline-offset-2">Share Card →</span>
+            </p>
           </div>
-        </div>
+        </button>
         <button
           onClick={() => updateSettings({ theme: settings.theme === "dark" ? "light" : "dark" })}
           className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-muted hover:bg-card-2 hover:text-ink"

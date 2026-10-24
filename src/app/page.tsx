@@ -17,6 +17,7 @@ import { FocusTimer } from "@/components/FocusTimer";
 import { MiniCalendar } from "@/components/MiniCalendar";
 import { PlanList } from "@/components/PlanList";
 import { QuickAdd } from "@/components/QuickAdd";
+import { ShareCardWidget } from "@/components/ShareCardWidget";
 import { StatCard } from "@/components/StatCard";
 import { Button, IconButton, SectionTitle, toast } from "@/components/ui";
 
@@ -159,6 +160,7 @@ function TodayPage() {
         <div className="card p-5">
           <FocusTimer today={today} />
         </div>
+        <ShareCardWidget today={today} />
         <SplitCard today={today} />
         <div className="card p-5">
           <CalendarWidget today={today} />
