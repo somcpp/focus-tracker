@@ -69,38 +69,72 @@ export async function POST(req: Request) {
     // Run sync in transaction
     await prisma.$transaction(async (tx) => {
       // Sync categories
+      const categoryIdSet = new Set<string>();
       if (Array.isArray(categories)) {
         for (const c of categories) {
+          if (!c.id) continue;
+          categoryIdSet.add(c.id);
           await tx.category.upsert({
             where: { id: c.id },
             update: {
               userId,
-              name: c.name,
-              icon: c.icon,
-              color: c.color,
+              name: c.name || "General",
+              icon: c.icon || "layers",
+              color: c.color || "blue",
               archived: !!c.archived,
             },
             create: {
               id: c.id,
               userId,
-              name: c.name,
-              icon: c.icon,
-              color: c.color,
+              name: c.name || "General",
+              icon: c.icon || "layers",
+              color: c.color || "blue",
               archived: !!c.archived,
             },
           });
         }
       }
 
+      // Also register any existing categories for this user from DB
+      const dbCategories = await tx.category.findMany({
+        where: { userId },
+        select: { id: true },
+      });
+      dbCategories.forEach((c) => categoryIdSet.add(c.id));
+
       // Sync tasks
+      const taskIdSet = new Set<string>();
       if (Array.isArray(tasks)) {
         for (const t of tasks) {
+          if (!t.id || !t.title) continue;
+
+          let categoryId = t.categoryId;
+          if (!categoryId || !categoryIdSet.has(categoryId)) {
+            // Create fallback category if category was missing or orphaned
+            const fallbackId = categoryId || `cat_${Date.now()}`;
+            await tx.category.upsert({
+              where: { id: fallbackId },
+              update: { userId },
+              create: {
+                id: fallbackId,
+                userId,
+                name: "General",
+                icon: "layers",
+                color: "blue",
+                archived: false,
+              },
+            });
+            categoryIdSet.add(fallbackId);
+            categoryId = fallbackId;
+          }
+
+          taskIdSet.add(t.id);
           await tx.task.upsert({
             where: { id: t.id },
             update: {
               userId,
-              categoryId: t.categoryId,
-              date: t.date,
+              categoryId,
+              date: t.date || new Date().toISOString().slice(0, 10),
               title: t.title,
               notes: t.notes ?? "",
               done: !!t.done,
@@ -110,8 +144,8 @@ export async function POST(req: Request) {
             create: {
               id: t.id,
               userId,
-              categoryId: t.categoryId,
-              date: t.date,
+              categoryId,
+              date: t.date || new Date().toISOString().slice(0, 10),
               title: t.title,
               notes: t.notes ?? "",
               done: !!t.done,
@@ -122,23 +156,34 @@ export async function POST(req: Request) {
         }
       }
 
+      const dbTasks = await tx.task.findMany({
+        where: { userId },
+        select: { id: true },
+      });
+      dbTasks.forEach((t) => taskIdSet.add(t.id));
+
       // Sync sessions
       if (Array.isArray(sessions)) {
         for (const s of sessions) {
+          if (!s.id || !s.taskId || !taskIdSet.has(s.taskId)) continue;
+          const startNum = Math.floor(Number(s.start));
+          if (isNaN(startNum) || startNum <= 0) continue;
+          const endNum = s.end !== null && s.end !== undefined ? Math.floor(Number(s.end)) : null;
+
           await tx.focusSession.upsert({
             where: { id: s.id },
             update: {
               userId,
               taskId: s.taskId,
-              start: BigInt(s.start),
-              end: s.end !== null && s.end !== undefined ? BigInt(s.end) : null,
+              start: BigInt(startNum),
+              end: endNum !== null && !isNaN(endNum) ? BigInt(endNum) : null,
             },
             create: {
               id: s.id,
               userId,
               taskId: s.taskId,
-              start: BigInt(s.start),
-              end: s.end !== null && s.end !== undefined ? BigInt(s.end) : null,
+              start: BigInt(startNum),
+              end: endNum !== null && !isNaN(endNum) ? BigInt(endNum) : null,
             },
           });
         }

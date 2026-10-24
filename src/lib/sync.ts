@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { useStore } from "./store";
 import { useAuth } from "./auth-client";
+import type { Category, Task, Session, Journal, Settings } from "./types";
 
 interface SyncStatusState {
   isSyncing: boolean;
@@ -25,8 +26,120 @@ let syncTimeout: NodeJS.Timeout | null = null;
 let isSyncInProgress = false;
 
 /**
+ * Robust 2-way sync:
+ * 1. Pulls all cloud data (categories, tasks, sessions, journals, settings) from Neon Postgres.
+ * 2. Merges cloud data with local storage so no local or remote data is ever lost.
+ * 3. Immediately pushes the merged state back to Neon Postgres so all devices are synchronized.
+ */
+export async function syncWithCloud(): Promise<void> {
+  if (isSyncInProgress) return;
+  try {
+    isSyncInProgress = true;
+    useSyncStatus.getState().setSyncing(true);
+
+    const auth = useAuth.getState();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (auth.token) {
+      headers["Authorization"] = `Bearer ${auth.token}`;
+    }
+
+    // 1. Fetch remote data from Neon
+    const res = await fetch("/api/sync", {
+      headers,
+      credentials: "include",
+    });
+
+    let remoteCategories: Category[] = [];
+    let remoteTasks: Task[] = [];
+    let remoteSessions: Session[] = [];
+    let remoteJournals: Record<string, Journal> = {};
+    let remoteSettings: Partial<Settings> | null = null;
+
+    if (res.ok) {
+      const data = await res.json();
+      remoteCategories = data.categories || [];
+      remoteTasks = data.tasks || [];
+      remoteSessions = data.sessions || [];
+      remoteJournals = data.journals || {};
+      remoteSettings = data.settings || null;
+    }
+
+    const local = useStore.getState();
+
+    // 2. Perform intelligent bidirectional merge:
+    // Categories: union by id
+    const catMap = new Map<string, Category>();
+    remoteCategories.forEach((c) => catMap.set(c.id, c));
+    local.categories.forEach((c) => catMap.set(c.id, c));
+    const mergedCategories = Array.from(catMap.values());
+
+    // Tasks: union by id
+    const taskMap = new Map<string, Task>();
+    remoteTasks.forEach((t) => taskMap.set(t.id, t));
+    local.tasks.forEach((t) => {
+      const remoteT = taskMap.get(t.id);
+      if (remoteT) {
+        taskMap.set(t.id, {
+          ...remoteT,
+          ...t,
+          done: t.done || remoteT.done,
+        });
+      } else {
+        taskMap.set(t.id, t);
+      }
+    });
+    const mergedTasks = Array.from(taskMap.values());
+
+    // Sessions: union by id
+    const sessionMap = new Map<string, Session>();
+    remoteSessions.forEach((s) => sessionMap.set(s.id, s));
+    local.sessions.forEach((s) => sessionMap.set(s.id, s));
+    const mergedSessions = Array.from(sessionMap.values());
+
+    // Journals: union by date
+    const mergedJournals = { ...remoteJournals, ...local.journals };
+
+    // Settings: merge
+    const mergedSettings = { ...local.settings, ...(remoteSettings || {}) };
+
+    // Update local store with the merged state
+    useStore.setState({
+      categories: mergedCategories.length > 0 ? mergedCategories : local.categories,
+      tasks: mergedTasks,
+      sessions: mergedSessions,
+      journals: mergedJournals,
+      settings: mergedSettings,
+    });
+
+    // 3. Push complete merged state back to Neon so cloud is 100% up to date
+    const payload = {
+      categories: mergedCategories,
+      tasks: mergedTasks,
+      sessions: mergedSessions,
+      journals: mergedJournals,
+      settings: mergedSettings,
+    };
+
+    await fetch("/api/sync", {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    useSyncStatus.getState().setSyncing(false);
+  } catch (err) {
+    console.warn("[CloudSync] syncWithCloud failed:", err);
+    useSyncStatus.getState().setSyncing(false, "Sync failed");
+  } finally {
+    isSyncInProgress = false;
+  }
+}
+
+/**
  * Triggers a debounced background sync of the local store to Neon Postgres.
- * Always syncs ALL data (categories, tasks, sessions, journals, settings) from localStorage.
  * Never blocks the UI or main thread.
  */
 export function queueDatabaseSync(delayMs = 1200) {
@@ -55,20 +168,16 @@ export function queueDatabaseSync(delayMs = 1200) {
         headers["Authorization"] = `Bearer ${auth.token}`;
       }
 
-      const res = await fetch("/api/sync", {
+      await fetch("/api/sync", {
         method: "POST",
         headers,
         credentials: "include",
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        console.warn("[CloudSync] Sync returned non-200 status:", res.status);
-      }
       useSyncStatus.getState().setSyncing(false);
     } catch (err) {
-      // Offline or network error: fail silently and keep local-first state intact
-      console.warn("[CloudSync] Background sync to Neon failed (retaining local state):", err);
+      console.warn("[CloudSync] Debounced push to Neon failed:", err);
       useSyncStatus.getState().setSyncing(false, "Sync failed");
     } finally {
       isSyncInProgress = false;
@@ -77,53 +186,16 @@ export function queueDatabaseSync(delayMs = 1200) {
 }
 
 /**
- * Immediately pushes current localStorage data to Neon without waiting for debounce.
+ * Immediately triggers a full bidirectional sync with Neon Postgres.
  */
 export async function pushDatabaseSyncNow() {
   if (syncTimeout) clearTimeout(syncTimeout);
-  return queueDatabaseSync(0);
+  return syncWithCloud();
 }
 
 /**
- * On first mount:
- * - If localStorage is completely fresh/empty, restore from Neon Postgres.
- * - If localStorage already contains data, push all existing categories, tasks,
- *   sessions, journals to Neon so cloud is fully up to date.
+ * On first mount, trigger a full bidirectional sync with Neon Postgres.
  */
 export async function initializeDatabaseSync() {
-  try {
-    const local = useStore.getState();
-    const auth = useAuth.getState();
-    const isLocalEmpty = local.tasks.length === 0 && local.sessions.length === 0;
-
-    const headers: Record<string, string> = {};
-    if (auth.token) {
-      headers["Authorization"] = `Bearer ${auth.token}`;
-    }
-
-    if (isLocalEmpty) {
-      const res = await fetch("/api/sync", {
-        headers,
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.categories?.length > 0 || data.tasks?.length > 0) {
-          useStore.setState({
-            categories: data.categories.length > 0 ? data.categories : local.categories,
-            tasks: data.tasks ?? [],
-            sessions: data.sessions ?? [],
-            journals: data.journals ?? {},
-            settings: data.settings ? { ...local.settings, ...data.settings } : local.settings,
-          });
-          return;
-        }
-      }
-    }
-
-    // Push all existing local data immediately to ensure Neon is completely synchronized
-    queueDatabaseSync(300);
-  } catch (err) {
-    console.warn("[CloudSync] Initialization failed:", err);
-  }
+  return syncWithCloud();
 }

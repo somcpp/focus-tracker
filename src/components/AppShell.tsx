@@ -17,7 +17,7 @@ import { TaskDetail } from "./TaskDetail";
 import { CategoryForm } from "./CategoryForm";
 import { AuthModal } from "./AuthModal";
 import { requestPersistentStorage } from "@/lib/persist";
-import { initializeDatabaseSync, queueDatabaseSync, useSyncStatus } from "@/lib/sync";
+import { initializeDatabaseSync, queueDatabaseSync, syncWithCloud, useSyncStatus } from "@/lib/sync";
 import { useAuth } from "@/lib/auth-client";
 
 const NAV = [
@@ -70,8 +70,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     });
     const unsubAuth = useAuth.subscribe((state, prev) => {
       if (state.user && state.user.id !== prev?.user?.id) {
-        // Immediately sync all local storage data to the user's cloud database on sign in
-        queueDatabaseSync(100);
+        // Immediately run bidirectional sync on sign in so other browsers pull all cloud data
+        syncWithCloud();
       }
     });
     return () => {
