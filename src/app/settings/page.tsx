@@ -84,6 +84,31 @@ function SettingsPage() {
           </Field>
         </Section>
 
+        <Section title="Desktop Dynamic Island" description="Always-on-top floating pill pinned under your laptop camera across all screens.">
+          <div className="flex flex-col gap-2.5 py-1">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-ink">Native Desktop Companion</p>
+                <p className="text-xs text-muted">Floats transparently above VS Code, LeetCode, terminal, and all windows with click-through and zero lag.</p>
+              </div>
+              <a
+                href="/island"
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-line bg-card-2 px-3 py-1.5 text-xs font-semibold hover:border-accent/40 hover:text-ink"
+              >
+                Preview Island UI ↗
+              </a>
+            </div>
+            <div className="rounded-xl border border-line bg-card-2 p-3 text-xs text-muted">
+              <span className="font-semibold text-ink">To launch on your desktop:</span>
+              <p className="mt-1 font-mono text-[11px] text-ink bg-card p-2 rounded-lg border border-line select-all">
+                npm run desktop
+              </p>
+            </div>
+          </div>
+        </Section>
+
         <Section title="Goals & streaks" description="These drive the progress ring, calendar colors and streaks.">
           <Slider
             label="Daily focus goal"

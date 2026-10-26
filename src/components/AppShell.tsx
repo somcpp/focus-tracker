@@ -36,12 +36,18 @@ function useIsActive() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const mounted = useMounted();
   const theme = useStore((s) => s.settings.theme);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
+
+  // Frameless Dynamic Island route runs without shell chrome or margins
+  if (pathname === "/island") {
+    return <>{children}</>;
+  }
 
   // Protect locally stored data from automatic browser eviction
   useEffect(() => {
