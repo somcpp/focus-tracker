@@ -60,11 +60,22 @@ export default function DynamicIslandPage() {
   const now = useNow(!!active, 1000);
   const today = useToday();
 
-  // Find currently active task
+  // Find currently active task, or retain the paused/most recent task
   const currentTask = useMemo(() => {
-    if (!active) return null;
-    return tasks.find((t) => t.id === active.taskId) ?? null;
-  }, [active, tasks]);
+    if (active) {
+      return tasks.find((t) => t.id === active.taskId) ?? null;
+    }
+    // When paused: find the most recently paused/worked-on task that is not marked done
+    const recentSession = [...sessions]
+      .filter((s) => s.end !== null)
+      .sort((a, b) => (b.end ?? 0) - (a.end ?? 0))[0];
+    if (recentSession) {
+      const task = tasks.find((t) => t.id === recentSession.taskId && !t.done);
+      if (task) return task;
+    }
+    // Otherwise fallback to today's first pending task
+    return tasks.find((t) => t.date === today && !t.done) ?? null;
+  }, [active, sessions, tasks, today]);
 
   const currentCategory = useMemo(() => {
     if (!currentTask) return null;
@@ -267,18 +278,22 @@ export default function DynamicIslandPage() {
                   </button>
                 </div>
               </>
-            ) : active && currentTask ? (
-              /* ACTIVE FOCUS SESSION STATE */
+            ) : currentTask ? (
+              /* FOCUS SESSION STATE (ACTIVE OR PAUSED) */
               <>
                 {/* Left: Category Icon & Pulsing Aura */}
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="relative flex items-center justify-center">
+                    {active && (
+                      <span
+                        className="absolute h-3 w-3 animate-ping rounded-full opacity-60"
+                        style={{ backgroundColor: accentColor }}
+                      />
+                    )}
                     <span
-                      className="absolute h-3 w-3 animate-ping rounded-full opacity-60"
-                      style={{ backgroundColor: accentColor }}
-                    />
-                    <span
-                      className="relative h-2.5 w-2.5 rounded-full shadow-[0_0_8px_currentColor]"
+                      className={`relative h-2.5 w-2.5 rounded-full ${
+                        active ? "shadow-[0_0_8px_currentColor]" : "opacity-60"
+                      }`}
                       style={{ backgroundColor: accentColor, color: accentColor }}
                     />
                   </div>
@@ -290,35 +305,58 @@ export default function DynamicIslandPage() {
                   <span className="truncate text-[13px] font-semibold tracking-tight text-white/95 max-w-[150px]">
                     {plainText(currentTask.title)}
                   </span>
+                  {!active && (
+                    <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">
+                      PAUSED
+                    </span>
+                  )}
                 </div>
 
                 {/* Right: Clock & Equalizer & Hover Actions */}
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-0.5 h-3 px-1">
-                    <span className="h-full w-[2.5px] animate-[pulse_1s_ease-in-out_infinite] rounded-full bg-emerald-400" />
-                    <span className="h-2/3 w-[2.5px] animate-[pulse_0.7s_ease-in-out_infinite] rounded-full bg-emerald-400" />
-                    <span className="h-4/5 w-[2.5px] animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-emerald-400" />
-                  </div>
+                  {active ? (
+                    <div className="flex items-center gap-0.5 h-3 px-1">
+                      <span className="h-full w-[2.5px] animate-[pulse_1s_ease-in-out_infinite] rounded-full bg-emerald-400" />
+                      <span className="h-2/3 w-[2.5px] animate-[pulse_0.7s_ease-in-out_infinite] rounded-full bg-emerald-400" />
+                      <span className="h-4/5 w-[2.5px] animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-emerald-400" />
+                    </div>
+                  ) : null}
 
                   <span
-                    className="font-mono text-[13px] font-bold tracking-tight tnum"
-                    style={{ color: accentColor }}
+                    className={`font-mono text-[13px] font-bold tracking-tight tnum ${
+                      active ? "" : "text-white/70"
+                    }`}
+                    style={active ? { color: accentColor } : undefined}
                   >
                     {formatClock(totalTime)}
                   </span>
 
                   <div className="flex items-center gap-1 pl-1">
-                    <button
-                      onClick={() => {
-                        pauseActive();
-                        queueDatabaseSync(300);
-                      }}
-                      aria-label="Pause"
-                      title="Pause timer"
-                      className="grid h-6 w-6 place-items-center rounded-full bg-white/10 hover:bg-white/25 text-white transition active:scale-90"
-                    >
-                      <Pause size={12} className="fill-current" />
-                    </button>
+                    {active ? (
+                      <button
+                        onClick={() => {
+                          pauseActive();
+                          queueDatabaseSync(300);
+                        }}
+                        aria-label="Pause"
+                        title="Pause timer"
+                        className="grid h-6 w-6 place-items-center rounded-full bg-white/10 hover:bg-white/25 text-white transition active:scale-90"
+                      >
+                        <Pause size={12} className="fill-current" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          startTask(currentTask.id);
+                          queueDatabaseSync(300);
+                        }}
+                        aria-label="Resume"
+                        title="Resume timer"
+                        className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500 hover:bg-emerald-400 text-white transition active:scale-90 shadow-sm shadow-emerald-500/40"
+                      >
+                        <Play size={11} className="fill-current ml-0.5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         finishTask(currentTask.id);
@@ -576,25 +614,38 @@ export default function DynamicIslandPage() {
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-2">
-                    {active && currentTask ? (
+                    {currentTask ? (
                       <>
-                        <button
-                          onClick={() => {
-                            pauseActive();
-                            queueDatabaseSync(300);
-                          }}
-                          className="flex items-center gap-1.5 rounded-xl bg-white/15 hover:bg-white/25 px-3 py-1.5 text-xs font-semibold text-white transition active:scale-95"
-                        >
-                          <Pause size={12} className="fill-current" />
-                          <span>Pause</span>
-                        </button>
+                        {active ? (
+                          <button
+                            onClick={() => {
+                              pauseActive();
+                              queueDatabaseSync(300);
+                            }}
+                            className="flex items-center gap-1.5 rounded-xl bg-white/15 hover:bg-white/25 px-3 py-1.5 text-xs font-semibold text-white transition active:scale-95"
+                          >
+                            <Pause size={12} className="fill-current" />
+                            <span>Pause</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              startTask(currentTask.id);
+                              queueDatabaseSync(300);
+                            }}
+                            className="flex items-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-3.5 py-1.5 text-xs font-bold text-white transition shadow-md shadow-emerald-500/40 active:scale-95"
+                          >
+                            <Play size={12} className="fill-current" />
+                            <span>Resume</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             finishTask(currentTask.id);
                             queueDatabaseSync(300);
                             setExpanded(false);
                           }}
-                          className="flex items-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-3 py-1.5 text-xs font-bold text-white transition shadow-[0_0_12px_rgba(16,185,129,0.5)] active:scale-95"
+                          className="flex items-center gap-1.5 rounded-xl bg-emerald-500/80 hover:bg-emerald-400 px-3 py-1.5 text-xs font-bold text-white transition shadow-[0_0_12px_rgba(16,185,129,0.5)] active:scale-95"
                         >
                           <Check size={13} strokeWidth={3} />
                           <span>Done</span>
