@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useParams } from "next/navigation";
 import { Inbox } from "lucide-react";
 import { ClientOnly } from "@/components/ClientOnly";
@@ -16,8 +17,16 @@ function DatedJournal() {
 
 export default function Page() {
   return (
-    <ClientOnly>
-      <DatedJournal />
-    </ClientOnly>
+    <Suspense
+      fallback={
+        <div className="grid min-h-[60vh] place-items-center">
+          <span className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-accent" />
+        </div>
+      }
+    >
+      <ClientOnly>
+        <DatedJournal />
+      </ClientOnly>
+    </Suspense>
   );
 }

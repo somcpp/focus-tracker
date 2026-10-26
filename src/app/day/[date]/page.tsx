@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ClientOnly } from "@/components/ClientOnly";
 
 /** Old route: a day's log now lives in the Calendar's day panel */
 function Redirect() {
@@ -16,8 +15,8 @@ function Redirect() {
 
 export default function Page() {
   return (
-    <ClientOnly>
+    <Suspense fallback={null}>
       <Redirect />
-    </ClientOnly>
+    </Suspense>
   );
 }

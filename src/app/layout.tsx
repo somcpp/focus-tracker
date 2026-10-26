@@ -29,6 +29,8 @@ export const viewport: Viewport = {
 // Apply the saved theme before first paint to avoid a light/dark flash.
 const themeScript = `try{var s=JSON.parse(localStorage.getItem('grindlog-v1')||'{}');if(s.state&&s.state.settings&&s.state.settings.theme==='dark')document.documentElement.classList.add('dark')}catch(e){}`;
 
+import { Suspense } from "react";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -40,7 +42,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-full font-sans">
-        <AppShell>{children}</AppShell>
+        <Suspense fallback={null}>
+          <AppShell>{children}</AppShell>
+        </Suspense>
       </body>
     </html>
   );

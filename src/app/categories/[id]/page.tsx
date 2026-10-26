@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { CalendarDays, Check, CheckCircle2, Clock3, FolderSearch, ListTodo, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { ClientOnly } from "@/components/ClientOnly";
 import { CategoryForm } from "@/components/CategoryForm";
 import { RichText } from "@/components/RichText";
@@ -278,8 +278,16 @@ function CategoryPage() {
 
 export default function Page() {
   return (
-    <ClientOnly>
-      <CategoryPage />
-    </ClientOnly>
+    <Suspense
+      fallback={
+        <div className="grid min-h-[60vh] place-items-center">
+          <span className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-accent" />
+        </div>
+      }
+    >
+      <ClientOnly>
+        <CategoryPage />
+      </ClientOnly>
+    </Suspense>
   );
 }
