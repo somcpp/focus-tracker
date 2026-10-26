@@ -71,9 +71,13 @@ export default function DynamicIslandPage() {
     return tasks.filter((t) => t.date === today && !t.done);
   }, [tasks, today]);
 
-  // Electron click-through registration
+  // Electron click-through registration and body transparency
   useEffect(() => {
     window.electronAPI?.setIgnoreMouseEvents(true, { forward: true });
+    document.documentElement.style.setProperty("background", "transparent", "important");
+    document.documentElement.style.setProperty("background-color", "transparent", "important");
+    document.body.style.setProperty("background", "transparent", "important");
+    document.body.style.setProperty("background-color", "transparent", "important");
   }, []);
 
   // Dynamic window resizing based on expanded state
@@ -108,6 +112,7 @@ export default function DynamicIslandPage() {
 
   return (
     <div
+      data-island="true"
       className="flex h-screen w-screen flex-col items-center justify-start overflow-hidden bg-transparent select-none pt-1"
       style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
     >

@@ -70,6 +70,19 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Dynamic Island frameless transparency */
+html:has([data-island]),
+body:has([data-island]) {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+body:has([data-island]) nextjs-portal,
+body:has([data-island]) [data-nextjs-toast],
+body:has([data-island]) [data-nextjs-dialog-overlay] {
+  display: none !important;
+}
+
 @utility card {
   background: var(--card);
   border: 1px solid var(--line);

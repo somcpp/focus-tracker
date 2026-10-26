@@ -18,6 +18,7 @@ function createWindow() {
     x,
     y,
     transparent: true,
+    backgroundColor: "#00000000",
     frame: false,
     alwaysOnTop: true,
     skipTaskbar: false,
