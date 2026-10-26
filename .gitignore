@@ -45,3 +45,7 @@ demo-backup.json
 
 # IDE
 .vscode/
+
+# desktop build
+dist-desktop/
+dist/

@@ -9,6 +9,7 @@
     "type": "git",
     "url": "https://github.com/somcpp/focus-tracker.git"
   },
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,7 +17,23 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "screenshots": "node scripts/screenshots.mjs",
-    "desktop": "electron electron/main.cjs"
+    "desktop": "electron electron/main.cjs",
+    "desktop:build": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.focustracker.island",
+    "productName": "Focus Tracker Island",
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "files": [
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ]
+    }
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -35,6 +52,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "prisma": "^6.19.3",

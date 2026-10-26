@@ -38,9 +38,34 @@ function createWindow() {
     mainWindow.setVisibleOnAllWorkspaces(true);
   }
 
-  // Load the dedicated dynamic island Next.js route
-  const targetUrl = process.env.DESKTOP_URL || "http://localhost:3000/island";
-  mainWindow.loadURL(targetUrl);
+  // Load the dedicated dynamic island route (localhost if running, otherwise live Vercel production)
+  const prodUrl = "https://focus-tracker-lemon.vercel.app/island";
+  const customUrl = process.env.DESKTOP_URL;
+
+  if (customUrl) {
+    mainWindow.loadURL(customUrl);
+  } else if (app.isPackaged) {
+    mainWindow.loadURL(prodUrl);
+  } else {
+    // In dev: check if localhost:3000 is running, otherwise fall back to production
+    const http = require("http");
+    const checkReq = http.get("http://localhost:3000/island", (res) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL("http://localhost:3000/island");
+      }
+    });
+    checkReq.on("error", () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL(prodUrl);
+      }
+    });
+    checkReq.setTimeout(600, () => {
+      checkReq.destroy();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL(prodUrl);
+      }
+    });
+  }
 
   // Allow clicks to pass through transparent padding outside the pill
   ipcMain.on("set-ignore-mouse-events", (event, ignore, options) => {
