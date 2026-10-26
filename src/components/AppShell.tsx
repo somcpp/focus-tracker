@@ -3,7 +3,7 @@
 import { plainText } from "@/lib/links";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, CalendarDays, Check, Cloud, Flame, Home, Moon, NotebookPen, Pause, Plus, Settings, Sun, Timer } from "lucide-react";
+import { BarChart3, CalendarDays, Check, Cloud, Flame, Home, Laptop, Moon, NotebookPen, Pause, Plus, Settings, Sun, Timer } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui-store";
@@ -18,8 +18,9 @@ import { TaskDetail } from "./TaskDetail";
 import { CategoryForm } from "./CategoryForm";
 import { AuthModal } from "./AuthModal";
 import { ShareProgressModal } from "./ShareProgressModal";
+import { DesktopPairModal } from "./DesktopPairModal";
 import { requestPersistentStorage } from "@/lib/persist";
-import { clearLocalStoreOnLogout, initializeDatabaseSync, queueDatabaseSync, syncWithCloud, useSyncStatus } from "@/lib/sync";
+import { clearLocalStoreOnLogout, initializeDatabaseSync, pullLatestFromCloud, queueDatabaseSync, syncWithCloud, useSyncStatus } from "@/lib/sync";
 import { useAuth } from "@/lib/auth-client";
 
 const NAV = [
@@ -69,6 +70,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     useAuth.getState().checkSession();
   }, [mounted]);
 
+  const desktopPairOpen = useUi((s) => s.desktopPairOpen);
+  const setDesktopPairOpen = useUi((s) => s.setDesktopPairOpen);
+
   // Sync with Neon Postgres: hydrate if empty, debounced push on changes, and sync on login
   useEffect(() => {
     if (!mounted) return;
@@ -87,9 +91,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         }
       }
     });
+
+    // Real-time synchronization: poll every 4s to catch timer start/pause from Desktop Island
+    const pollTimer = setInterval(() => {
+      pullLatestFromCloud();
+    }, 4000);
+
     return () => {
       unsubStore();
       unsubAuth();
+      clearInterval(pollTimer);
     };
   }, [mounted]);
 
@@ -108,6 +119,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <TimerEffects />
           <TaskDetail />
           <AuthModal />
+          <DesktopPairModal open={desktopPairOpen} onClose={() => setDesktopPairOpen(false)} />
           <ShareProgressModal />
           <Toaster />
         </>
@@ -263,34 +275,50 @@ function AuthSidebarButton() {
 
   if (user) {
     return (
-      <button
-        onClick={() => setModalOpen(true)}
-        className="flex items-center gap-2.5 rounded-xl border border-line bg-card-2 p-2.5 text-left transition hover:border-accent/40"
-      >
-        {user.image ? (
-          <img src={user.image} alt={user.name} className="h-8 w-8 rounded-full border border-line object-cover" />
-        ) : (
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white">
-            {(user.name || user.email || "U")[0].toUpperCase()}
+      <div className="flex flex-col gap-1.5">
+        <button
+          onClick={() => setModalOpen(true)}
+          className="flex items-center gap-2.5 rounded-xl border border-line bg-card-2 p-2.5 text-left transition hover:border-accent/40"
+        >
+          {user.image ? (
+            <img src={user.image} alt={user.name} className="h-8 w-8 rounded-full border border-line object-cover" />
+          ) : (
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white">
+              {(user.name || user.email || "U")[0].toUpperCase()}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-bold text-ink">{user.name || "Focus User"}</p>
+            <p className="flex items-center gap-1.5 text-[11px] font-medium">
+              {isSyncing ? (
+                <>
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                  <span className="text-amber-500">Syncing...</span>
+                </>
+              ) : (
+                <>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+                  <span className="text-emerald-600 dark:text-emerald-400">Cloud synced</span>
+                </>
+              )}
+            </p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => useUi.getState().setDesktopPairOpen(true)}
+          className="flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs font-semibold text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition active:scale-98"
+          title="Pair Floating Desktop Island"
+        >
+          <span className="flex items-center gap-2">
+            <Laptop size={14} className="text-indigo-400" />
+            <span>Desktop Island</span>
           </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-bold text-ink">{user.name || "Focus User"}</p>
-          <p className="flex items-center gap-1.5 text-[11px] font-medium">
-            {isSyncing ? (
-              <>
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
-                <span className="text-amber-500">Syncing...</span>
-              </>
-            ) : (
-              <>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
-                <span className="text-emerald-600 dark:text-emerald-400">Cloud synced</span>
-              </>
-            )}
-          </p>
-        </div>
-      </button>
+          <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-bold text-indigo-300">
+            Pair Code
+          </span>
+        </button>
+      </div>
     );
   }
 

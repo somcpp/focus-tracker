@@ -33,6 +33,21 @@ export async function verifyNeonAuthToken(token: string): Promise<AuthSession | 
   // 2. Check Neon Auth DB session table (handles opaque session tokens)
   try {
     const { prisma } = await import("@/lib/prisma");
+
+    // Check Prisma session table
+    const dbSess = await prisma.session.findFirst({
+      where: { token, expiresAt: { gt: new Date() } },
+      include: { user: true },
+    }).catch(() => null);
+
+    if (dbSess && dbSess.user) {
+      return {
+        userId: dbSess.userId,
+        email: dbSess.user.email,
+        name: dbSess.user.name || undefined,
+      };
+    }
+
     interface SessionDbRow {
       userId: string;
       email: string;
@@ -45,7 +60,7 @@ export async function verifyNeonAuthToken(token: string): Promise<AuthSession | 
        WHERE s.token = $1 AND s."expiresAt" > NOW() 
        LIMIT 1`,
       token
-    );
+    ).catch(() => [] as SessionDbRow[]);
     if (rows && rows.length > 0) {
       return {
         userId: rows[0].userId,

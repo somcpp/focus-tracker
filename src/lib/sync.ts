@@ -153,10 +153,32 @@ export async function syncWithCloud(): Promise<void> {
     });
     const mergedTasks = Array.from(taskMap.values());
 
-    // Sessions: union by id
+    // Sessions: union by id with smart conflict resolution (ended sessions take precedence)
     const sessionMap = new Map<string, Session>();
     remoteSessions.forEach((s) => sessionMap.set(s.id, s));
-    local.sessions.forEach((s) => sessionMap.set(s.id, s));
+    local.sessions.forEach((localS) => {
+      const remoteS = sessionMap.get(localS.id);
+      if (!remoteS) {
+        sessionMap.set(localS.id, localS);
+      } else {
+        let resolvedEnd: number | null = null;
+        if (remoteS.end !== null && localS.end !== null) {
+          resolvedEnd = Math.max(remoteS.end, localS.end);
+        } else if (remoteS.end !== null) {
+          resolvedEnd = remoteS.end;
+        } else if (localS.end !== null) {
+          resolvedEnd = localS.end;
+        } else {
+          resolvedEnd = null;
+        }
+        sessionMap.set(localS.id, {
+          ...remoteS,
+          ...localS,
+          start: Math.min(remoteS.start, localS.start),
+          end: resolvedEnd,
+        });
+      }
+    });
     const mergedSessions = Array.from(sessionMap.values());
 
     // Journals: union by date
@@ -197,6 +219,97 @@ export async function syncWithCloud(): Promise<void> {
     useSyncStatus.getState().setSyncing(false, "Sync failed");
   } finally {
     isSyncInProgress = false;
+  }
+}
+
+/**
+ * Fast read-only sync: pulls latest categories, tasks, and running/paused sessions
+ * from Neon Postgres without posting back. Perfect for real-time background polling.
+ */
+export async function pullLatestFromCloud(): Promise<void> {
+  const auth = useAuth.getState();
+  if (!auth.user || isSyncInProgress) return;
+
+  try {
+    const headers: Record<string, string> = {};
+    if (auth.token) {
+      headers["Authorization"] = `Bearer ${auth.token}`;
+    }
+
+    const res = await fetch("/api/sync", {
+      headers,
+      credentials: "include",
+    });
+
+    if (!res.ok) return;
+    const data = await res.json();
+    const remoteCategories: Category[] = data.categories || [];
+    const remoteTasks: Task[] = data.tasks || [];
+    const remoteSessions: Session[] = data.sessions || [];
+    const remoteJournals: Record<string, Journal> = data.journals || {};
+    const remoteSettings: Partial<Settings> | null = data.settings || null;
+
+    const local = useStore.getState();
+    const deletedCatSet = new Set(local.deletedCategoryIds || []);
+
+    const catMap = new Map<string, Category>();
+    remoteCategories.filter((c) => !deletedCatSet.has(c.id)).forEach((c) => catMap.set(c.id, c));
+    local.categories.filter((c) => !deletedCatSet.has(c.id)).forEach((c) => catMap.set(c.id, c));
+    const mergedCategories = Array.from(catMap.values());
+
+    const taskMap = new Map<string, Task>();
+    remoteTasks.forEach((t) => taskMap.set(t.id, t));
+    local.tasks.forEach((t) => {
+      const remoteT = taskMap.get(t.id);
+      if (remoteT) {
+        taskMap.set(t.id, {
+          ...remoteT,
+          ...t,
+          done: t.done || remoteT.done,
+          notes: t.notes || remoteT.notes,
+        });
+      } else {
+        taskMap.set(t.id, t);
+      }
+    });
+    const mergedTasks = Array.from(taskMap.values());
+
+    const sessionMap = new Map<string, Session>();
+    remoteSessions.forEach((s) => sessionMap.set(s.id, s));
+    local.sessions.forEach((localS) => {
+      const remoteS = sessionMap.get(localS.id);
+      if (!remoteS) {
+        sessionMap.set(localS.id, localS);
+      } else {
+        let resolvedEnd: number | null = null;
+        if (remoteS.end !== null && localS.end !== null) {
+          resolvedEnd = Math.max(remoteS.end, localS.end);
+        } else if (remoteS.end !== null) {
+          resolvedEnd = remoteS.end;
+        } else if (localS.end !== null) {
+          resolvedEnd = localS.end;
+        } else {
+          resolvedEnd = null;
+        }
+        sessionMap.set(localS.id, {
+          ...remoteS,
+          ...localS,
+          start: Math.min(remoteS.start, localS.start),
+          end: resolvedEnd,
+        });
+      }
+    });
+    const mergedSessions = Array.from(sessionMap.values());
+
+    useStore.setState({
+      categories: mergedCategories.length > 0 ? mergedCategories : local.categories,
+      tasks: mergedTasks,
+      sessions: mergedSessions,
+      journals: { ...remoteJournals, ...local.journals },
+      settings: remoteSettings ? { ...local.settings, ...remoteSettings } : local.settings,
+    });
+  } catch (err) {
+    console.warn("[CloudSync] pullLatestFromCloud failed:", err);
   }
 }
 

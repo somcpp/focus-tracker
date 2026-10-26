@@ -14,6 +14,7 @@ interface AuthState {
   modalOpen: boolean;
   modalMode: "signin" | "signup";
   setModalOpen: (open: boolean, mode?: "signin" | "signup") => void;
+  setSession: (user: AuthUser | null, token?: string | null) => void;
   checkSession: () => Promise<AuthUser | null>;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error?: string }>;
@@ -58,6 +59,11 @@ export const useAuth = create<AuthState>((set) => ({
   modalMode: "signin",
 
   setModalOpen: (open, mode = "signin") => set({ modalOpen: open, modalMode: mode }),
+
+  setSession: (user, token = null) => {
+    saveSession(user, token);
+    set({ user, token });
+  },
 
   checkSession: async () => {
     try {

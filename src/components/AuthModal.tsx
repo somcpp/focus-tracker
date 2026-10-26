@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-client";
 import { Button, Modal } from "./ui";
-import { Cloud, LogOut, RefreshCw } from "lucide-react";
+import { Cloud, Laptop, LogOut, RefreshCw } from "lucide-react";
 import { pushDatabaseSyncNow } from "@/lib/sync";
+import { useUi } from "@/lib/ui-store";
 
 export function AuthModal() {
   const { user, modalOpen, modalMode, setModalOpen, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut } =
@@ -80,6 +81,18 @@ export function AuthModal() {
             <div className="rounded-xl border border-line bg-card-2 p-3.5 text-xs text-muted">
               All your existing local data (categories, tasks, timer sessions, and journals) is synchronized with Neon Cloud database.
             </div>
+
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setModalOpen(false);
+                useUi.getState().setDesktopPairOpen(true);
+              }}
+              className="w-full flex items-center justify-center gap-2 border-indigo-500/20 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 font-semibold py-2.5"
+            >
+              <Laptop size={15} className="text-indigo-400" />
+              <span>Pair Desktop Island (6-Digit Code)</span>
+            </Button>
 
             <div className="flex gap-2">
               <Button

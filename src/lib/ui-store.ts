@@ -12,10 +12,12 @@ export const useUi = create<{
   shareModalOpen: boolean;
   shareDate: string | null;
   shareScope: ShareScope;
+  desktopPairOpen: boolean;
   setBreak: (until: number | null, taskId?: string | null) => void;
   openTask: (id: string | null) => void;
   openShare: (date?: string, scope?: ShareScope) => void;
   closeShare: () => void;
+  setDesktopPairOpen: (open: boolean) => void;
 }>((set) => ({
   breakUntil: null,
   breakTaskId: null,
@@ -23,8 +25,10 @@ export const useUi = create<{
   shareModalOpen: false,
   shareDate: null,
   shareScope: "day",
+  desktopPairOpen: false,
   setBreak: (until, taskId = null) => set({ breakUntil: until, breakTaskId: taskId }),
   openTask: (id) => set({ openTaskId: id }),
   openShare: (date, scope = "day") => set({ shareModalOpen: true, shareDate: date ?? null, shareScope: scope }),
   closeShare: () => set({ shareModalOpen: false, shareDate: null }),
+  setDesktopPairOpen: (open) => set({ desktopPairOpen: open }),
 }));
