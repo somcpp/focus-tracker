@@ -82,6 +82,7 @@ export const DEFAULT_SETTINGS: Settings = {
   streakMinMinutes: 60,
   idleLimitMinutes: 180,
   theme: "light",
+  dayCutoffHour: 0,
   pomodoro: { enabled: false, focusMinutes: 25, breakMinutes: 5 },
   lastBackupAt: null,
   startDayDismissedOn: null,

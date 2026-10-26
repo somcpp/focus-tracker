@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth-client";
 import { useUi } from "@/lib/ui-store";
 import { useActiveSession, useNow, useToday } from "@/lib/hooks";
 import { categoryTotals, dayTotals } from "@/lib/selectors";
-import { addDays, formatDuration, prettyDate } from "@/lib/time";
+import { addDays, formatCutoffTime, formatDuration, prettyDate } from "@/lib/time";
 import { getTimeSlotData } from "@/lib/quotes";
 import { DayBoard } from "@/components/DayBoard";
 import { DayBreakdown } from "@/components/DayBreakdown";
@@ -43,6 +43,7 @@ function TodayPage() {
   const authUser = useAuth((s) => s.user);
   const name = settingsName || authUser?.name?.split(" ")[0] || "";
   const count = useStore((s) => s.tasks.filter((t) => t.date === today).length);
+  const dayCutoffHour = useStore((s) => s.settings.dayCutoffHour ?? 0);
 
   // Dynamic time-aware welcome and subtitle
   const [now, setNow] = useState(() => new Date());
@@ -113,11 +114,19 @@ function TodayPage() {
               </button>
             </div>
           </div>
-          <div className="shrink-0 sm:text-right">
+          <div className="shrink-0 sm:text-right flex flex-col sm:items-end gap-1">
             <p className="flex items-center gap-1.5 text-[15px] font-medium text-ink-2 sm:justify-end">
               <TimeSlotIcon iconName={timeData.iconName} className={`shrink-0 ${timeData.iconColor}`} />
               {prettyDate(today, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
             </p>
+            <Link
+              href="/settings"
+              className="flex items-center gap-1.5 rounded-full border border-line bg-card-2 px-2.5 py-0.5 text-[11px] font-medium text-muted hover:border-accent/40 hover:text-ink transition sm:justify-end"
+              title="Click to change when your day completes in Settings"
+            >
+              <Clock3 size={11} className="text-accent" />
+              <span>Day ends at {formatCutoffTime(dayCutoffHour)}</span>
+            </Link>
           </div>
         </header>
 
@@ -131,7 +140,19 @@ function TodayPage() {
               {count}
             </span>
           </h2>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                openShare(today);
+                toast("🎉 Great focus today! Review your summary and journal your learnings.");
+              }}
+              title="Wrap up and complete your day"
+              className="border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+            >
+              <CheckCircle2 size={14} className="text-emerald-500" /> Complete Day
+            </Button>
             <Button size="sm" variant="secondary" onClick={() => openShare(today)}>
               <Share2 size={14} className="text-accent" /> Share Card
             </Button>

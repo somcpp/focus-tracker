@@ -68,6 +68,8 @@ export interface Settings {
   streakMinMinutes: number;
   idleLimitMinutes: number;
   theme: "light" | "dark";
+  /** Hour (0-12) when the day rolls over. 0 = midnight, 1 = 1 AM, 2 = 2 AM, 3 = 3 AM, 4 = 4 AM, etc. */
+  dayCutoffHour: number;
   pomodoro: {
     enabled: boolean;
     focusMinutes: number;

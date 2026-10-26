@@ -6,6 +6,25 @@ export function dayKey(d: Date | number = new Date()): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+/**
+ * Computes the active day key taking into account the user's custom day cutoff hour (0-12).
+ * e.g., if cutoffHour = 4, timestamps between 00:00 and 03:59:59 still belong to the previous calendar day.
+ */
+export function todayKey(cutoffHour = 0, now: number = Date.now()): string {
+  const adjusted = new Date(now - cutoffHour * 3600000);
+  return dayKey(adjusted);
+}
+
+/** Formats a cutoff hour into user-friendly time, e.g. 0 -> "12:00 AM (Midnight)", 4 -> "4:00 AM" */
+export function formatCutoffTime(hour: number): string {
+  if (hour === 0) return "12:00 AM (Midnight)";
+  if (hour === 12) return "12:00 PM (Noon)";
+  const h = Math.floor(hour);
+  const m = Math.round((hour - h) * 60);
+  const minStr = m > 0 ? `:${pad(m)}` : ":00";
+  return `${h}${minStr} AM`;
+}
+
 export function parseDayKey(key: string): Date {
   const [y, m, d] = key.split("-").map(Number);
   return new Date(y, m - 1, d);

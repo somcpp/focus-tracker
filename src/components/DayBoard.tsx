@@ -4,9 +4,9 @@ import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronDown, FolderPlus, NotebookPen, Pause, Play, Plus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
-import { useActiveSession, useNow } from "@/lib/hooks";
+import { useActiveSession, useNow, useToday } from "@/lib/hooks";
 import { categoriesForDay, sessionsByTask, taskMs } from "@/lib/selectors";
-import { dayKey, formatClock, formatDuration } from "@/lib/time";
+import { formatClock, formatDuration } from "@/lib/time";
 import { DIFFICULTY, solid, tint } from "@/lib/colors";
 import { CategoryIcon } from "@/lib/icons";
 import { useUi } from "@/lib/ui-store";
@@ -254,8 +254,9 @@ function TaskRow({ task, category, ms, running }: { task: Task; category: Catego
   const toggleDone = useStore((s) => s.toggleDone);
   const openTask = useUi((s) => s.openTask);
   const color = solid(category.color);
+  const today = useToday();
   // Timers only run on today's tasks; past days are edited via the task's sessions.
-  const canPlay = running || task.date === dayKey();
+  const canPlay = running || task.date === today;
   const noteLinks = splitLinks(task.notes).flatMap((p) => (p.type === "link" ? [p.link] : []));
 
   return (

@@ -3,9 +3,9 @@
 import { Check, Pause, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useStore } from "@/lib/store";
-import { useNow } from "@/lib/hooks";
+import { useNow, useToday } from "@/lib/hooks";
 import { useUi } from "@/lib/ui-store";
-import { dayKey, formatClock, formatDuration, fromTimeInput, prettyDate, toTimeInput } from "@/lib/time";
+import { formatClock, formatDuration, fromTimeInput, prettyDate, toTimeInput } from "@/lib/time";
 import { DIFFICULTY, solid, tint } from "@/lib/colors";
 import { CategoryIcon } from "@/lib/icons";
 import type { Difficulty, Task } from "@/lib/types";
@@ -37,6 +37,7 @@ function Body({ task, onClose }: { task: Task; onClose: () => void }) {
   const sessions = allSessions.filter((s) => s.taskId === task.id).sort((a, b) => a.start - b.start);
   const running = sessions.some((s) => s.end === null);
   const now = useNow(running);
+  const today = useToday();
   const { updateTask, deleteTask, startTask, pauseActive, toggleDone, updateSession, deleteSession, addManualSession } =
     useStore.getState();
   const [manual, setManual] = useState("");
@@ -85,7 +86,7 @@ function Body({ task, onClose }: { task: Task; onClose: () => void }) {
         className="flex items-center gap-4 rounded-xl border border-line px-4 py-3"
         style={{ background: category ? tint(category.color, 6) : undefined }}
       >
-        {(running || task.date === dayKey()) && (
+        {(running || task.date === today) && (
           <button
             onClick={() => (running ? pauseActive() : startTask(task.id))}
             className="grid h-11 w-11 place-items-center rounded-full text-white shadow-sm transition-transform hover:scale-105"

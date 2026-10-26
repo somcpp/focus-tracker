@@ -1,11 +1,11 @@
 "use client";
 
 import { ClientOnly } from "@/components/ClientOnly";
-import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Cloud, Download, Moon, Pencil, Plus, ShieldCheck, Sun, Trash2, Upload } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Clock, Cloud, Download, Moon, Pencil, Plus, ShieldCheck, Sparkles, Sun, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isStoragePersisted, requestPersistentStorage } from "@/lib/persist";
 import { useStore } from "@/lib/store";
-import { formatDuration } from "@/lib/time";
+import { formatCutoffTime, formatDuration } from "@/lib/time";
 import { CategoryIcon } from "@/lib/icons";
 import type { Category, PersistedState } from "@/lib/types";
 import { CategoryForm } from "@/components/CategoryForm";
@@ -80,6 +80,59 @@ function SettingsPage() {
                   {t === "light" ? <Sun size={13} /> : <Moon size={13} />} {t}
                 </button>
               ))}
+            </div>
+          </Field>
+        </Section>
+
+        <Section
+          title="Day Rollover & Schedule"
+          description="Customize when your day completes instead of a rigid midnight reset. Ideal for night owls and late-night study sessions."
+        >
+          <Field
+            label="When does your day complete?"
+            hint="Sessions before this hour count towards your active day's streak and daily goal."
+          >
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { hour: 0, label: "12:00 AM (Midnight)" },
+                  { hour: 1, label: "1:00 AM" },
+                  { hour: 2, label: "2:00 AM" },
+                  { hour: 3, label: "3:00 AM (Night Owl)" },
+                  { hour: 4, label: "4:00 AM (Late Grinder)" },
+                  { hour: 5, label: "5:00 AM" },
+                  { hour: 6, label: "6:00 AM" },
+                ].map(({ hour, label }) => {
+                  const active = (settings.dayCutoffHour ?? 0) === hour;
+                  return (
+                    <button
+                      key={hour}
+                      type="button"
+                      onClick={() => updateSettings({ dayCutoffHour: hour })}
+                      className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                        active
+                          ? "bg-accent text-white shadow-sm shadow-accent/30"
+                          : "border border-line bg-card-2 text-ink-2 hover:bg-card hover:text-ink"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-xl border border-line bg-card-2 p-3 text-xs text-muted flex items-center gap-2.5">
+                <Clock size={16} className="text-accent shrink-0" />
+                <p>
+                  {(settings.dayCutoffHour ?? 0) === 0 ? (
+                    <span>Standard calendar mode: your day resets strictly at <strong>12:00 AM midnight</strong>.</span>
+                  ) : (
+                    <span>
+                      Dynamic mode: Your day completes at <strong>{formatCutoffTime(settings.dayCutoffHour ?? 0)}</strong>. Focus sessions and tasks up until {formatCutoffTime(settings.dayCutoffHour ?? 0)} stay on today!
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
           </Field>
         </Section>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useStore } from "./store";
-import { dayKey } from "./time";
+import { dayKey, todayKey } from "./time";
 
 const noopSubscribe = () => () => {};
 
@@ -26,16 +26,19 @@ export function useNow(active = true, interval = 1000) {
   return now;
 }
 
-/** Today's day key, updating after midnight */
+/** Today's active day key, updating dynamically after midnight or user's custom cutoff hour */
 export function useToday() {
-  const [today, setToday] = useState(() => dayKey());
+  const cutoffHour = useStore((s) => s.settings.dayCutoffHour ?? 0);
+  const [today, setToday] = useState(() => todayKey(cutoffHour));
   useEffect(() => {
-    const id = setInterval(() => {
-      const k = dayKey();
+    const update = () => {
+      const k = todayKey(cutoffHour);
       setToday((prev) => (prev === k ? prev : k));
-    }, 30000);
+    };
+    update();
+    const id = setInterval(update, 15000);
     return () => clearInterval(id);
-  }, []);
+  }, [cutoffHour]);
   return today;
 }
 
