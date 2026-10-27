@@ -92,15 +92,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
     });
 
-    // Real-time synchronization: poll every 4s to catch timer start/pause from Desktop Island
-    const pollTimer = setInterval(() => {
+    // Event-driven sync: only pull when window/tab is focused (0 background interval calls!)
+    const onFocus = () => {
       pullLatestFromCloud();
-    }, 4000);
+    };
+    window.addEventListener("focus", onFocus);
 
     return () => {
       unsubStore();
       unsubAuth();
-      clearInterval(pollTimer);
+      window.removeEventListener("focus", onFocus);
     };
   }, [mounted]);
 

@@ -113,14 +113,14 @@ export default function DynamicIslandPage() {
     });
   }, [mounted]);
 
-  // 2. Real-time background sync polling every 3.5 seconds
+  // 2. Event-driven sync on window focus (0 interval polling calls!)
   useEffect(() => {
     if (!mounted || !user) return;
-    const pollInterval = setInterval(() => {
+    const onFocus = () => {
       pullLatestFromCloud();
-    }, 3500);
-
-    return () => clearInterval(pollInterval);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [mounted, user]);
 
   // 3. Dynamic window resizing based on state
@@ -140,6 +140,10 @@ export default function DynamicIslandPage() {
   const handleMouseEnter = () => {
     setIsHovered(true);
     window.electronAPI?.setIgnoreMouseEvents(false);
+    // Refresh only when user hovers over the island
+    if (user) {
+      pullLatestFromCloud();
+    }
   };
 
   const handleMouseLeave = () => {

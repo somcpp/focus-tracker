@@ -24,6 +24,7 @@ export const useSyncStatus = create<SyncStatusState>((set) => ({
 
 let syncTimeout: NodeJS.Timeout | null = null;
 let isSyncInProgress = false;
+let isHydratingFromCloud = false;
 
 const LAST_USER_KEY = "focus_last_synced_user_id";
 
@@ -66,6 +67,7 @@ export async function syncWithCloud(): Promise<void> {
 
   try {
     isSyncInProgress = true;
+    isHydratingFromCloud = true;
     useSyncStatus.getState().setSyncing(true);
 
     const headers: Record<string, string> = {
@@ -219,18 +221,22 @@ export async function syncWithCloud(): Promise<void> {
     useSyncStatus.getState().setSyncing(false, "Sync failed");
   } finally {
     isSyncInProgress = false;
+    setTimeout(() => {
+      isHydratingFromCloud = false;
+    }, 500);
   }
 }
 
 /**
  * Fast read-only sync: pulls latest categories, tasks, and running/paused sessions
- * from Neon Postgres without posting back. Perfect for real-time background polling.
+ * from Neon Postgres without posting back.
  */
 export async function pullLatestFromCloud(): Promise<void> {
   const auth = useAuth.getState();
   if (!auth.user || isSyncInProgress) return;
 
   try {
+    isHydratingFromCloud = true;
     const headers: Record<string, string> = {};
     if (auth.token) {
       headers["Authorization"] = `Bearer ${auth.token}`;
@@ -310,6 +316,10 @@ export async function pullLatestFromCloud(): Promise<void> {
     });
   } catch (err) {
     console.warn("[CloudSync] pullLatestFromCloud failed:", err);
+  } finally {
+    setTimeout(() => {
+      isHydratingFromCloud = false;
+    }, 500);
   }
 }
 
@@ -317,7 +327,8 @@ export async function pullLatestFromCloud(): Promise<void> {
  * Triggers a debounced background sync of the local store to Neon Postgres.
  * Never blocks the UI or main thread.
  */
-export function queueDatabaseSync(delayMs = 1200) {
+export function queueDatabaseSync(delayMs = 1500) {
+  if (isHydratingFromCloud || isSyncInProgress) return;
   const auth = useAuth.getState();
   if (!auth.user) return; // Do not push to cloud if unauthenticated
 
